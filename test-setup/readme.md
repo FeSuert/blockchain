@@ -15,7 +15,7 @@ node1---node2
     \   /
     node3
       |
-    node4
+    node4 - node6
       |
     node5
 ```
