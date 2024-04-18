@@ -1,0 +1,49 @@
+# start tests with start_test.sh and find the results in tests/result.log
+services:
+  node1: &node
+    build: node
+    volumes:
+      - ./node1_data:/app/data
+    expose:
+      - 7654
+    command: ["/app/node", "/app/data/config1.toml"]
+
+  node2:
+    <<: *node
+    volumes:
+      - ./node2_data:/app/data
+    command: ["/app/node", "/app/data/config2.toml"]
+
+  node3:
+    <<: *node
+    volumes:
+      - ./node3_data:/app/data
+    command: ["/app/node", "/app/data/config3.toml"]
+
+  node4:
+    <<: *node
+    volumes:
+      - ./node4_data:/app/data
+    command: ["/app/node", "/app/data/config4.toml"]
+
+  node5:
+    <<: *node
+    volumes:
+      - ./node5_data:/app/data
+    command: ["/app/node", "/app/data/config5.toml"]
+
+  tester1: &tests
+    build: tests
+    volumes:
+      - ./tests:/tests
+    working_dir: /tests
+    command: ["python3", "tests.py", "phase1"]
+    depends_on:
+      - node1
+      - node2
+      - node3
+      - node4
+      - node5
+
+  tester2:
+    <<: *tests

@@ -1,0 +1,3 @@
+peers = ["node3", "node5"]
+rpc_port = 7654
+send_port = 8765
