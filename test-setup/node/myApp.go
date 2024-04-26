@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"os"
@@ -76,11 +77,9 @@ func main() {
 
 	re := regexp.MustCompile(`\d+`)
 	numbers := re.FindString(configPath)
-	if numbers == "" {
-		return "", fmt.Errorf("no numbers found in filename")
-	}
 	nodeName := "node" + numbers
-
+	hash := sha256.Sum256([]byte(nodeName))
+	peerID := fmt.Sprintf("%x", hash)
 	// Konfigurationsstruktur erstellen
 	var config Config
 
@@ -103,7 +102,7 @@ func main() {
 	fmt.Println("RPC Port:", config.RPCPort)
 	fmt.Println("Send Port:", config.SendPort)
 
-	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.RPCPort)))
+	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/p2p/%s", config.RPCPort, peerID)))
 	if err != nil {
 		panic(err)
 	}
