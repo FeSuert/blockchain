@@ -13,12 +13,12 @@ RUN apt-get update && apt-get install -y \
     iputils-ping
 
 # Install RocksDB from source
-RUN git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb
-RUN cd /tmp/rocksdb && \
-    git checkout main && \
-    make shared_lib && \
-    make install && \
-    ldconfig
+# RUN git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb
+# RUN cd /tmp/rocksdb && \
+#     git checkout main && \
+#     make shared_lib && \
+#     make install && \
+#     ldconfig
 
 # Copy the Go project files into the container
 COPY go.mod go.sum myApp.go /app/

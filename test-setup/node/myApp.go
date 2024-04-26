@@ -14,7 +14,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
-	madns "github.com/multiformats/go-multiaddr-dns"
 	"github.com/pelletier/go-toml"
 )
 
@@ -26,36 +25,26 @@ type Config struct {
 
 func connectToPeers(h host.Host, peers []string, defaultPort int) error {
 	for _, peerName := range peers {
-		// Construct the multiaddress assuming all peers are using the same port
 		ctx := context.Background()
-		fullAddr, err := madns.DefaultResolver.LookupIPAddr(ctx, peerName)
-		if err != nil {
-			log.Printf("Error looking up IP address for %s: %v", peerName, err)
-			return nil // or handle the error appropriately
-		}
-
-		ipAddr := fullAddr[0].IP.String()
-		addrStr := fmt.Sprintf("/ip4/%s/tcp/%d", ipAddr, defaultPort)
-		addr, err := multiaddr.NewMultiaddr(addrStr)
+		fullAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/dns4/%s/tcp/%d", peerName, defaultPort))
 		if err != nil {
 			log.Printf("Error creating multiaddress for %s: %v", peerName, err)
-			return nil // or handle the error appropriately
+			continue
 		}
 
-		peerInfo, err := peer.AddrInfoFromP2pAddr(addr)
-		if err != nil {
-			log.Printf("Error getting peer info from %s: %v", addr, err)
-			continue // or return err to stop the process
+		peerInfo := &peer.AddrInfo{
+			ID:    h.ID(),
+			Addrs: []multiaddr.Multiaddr{fullAddr},
 		}
 
-		fmt.Printf("Attempting to connect to %s\n", addr)
+		log.Printf("Attempting to connect to %s", peerName)
 		h.Peerstore().AddAddrs(peerInfo.ID, peerInfo.Addrs, peerstore.PermanentAddrTTL)
-		if err := h.Connect(context.Background(), *peerInfo); err != nil {
-			log.Printf("Failed to connect to %s: %v", addr, err)
-			continue // or return err to stop the process
+		if err := h.Connect(ctx, *peerInfo); err != nil {
+			log.Printf("Failed to connect to %s: %v", peerName, err)
+			continue
 		}
 
-		fmt.Printf("Connected to %s\n", addr)
+		log.Printf("Connected to %s", peerName)
 	}
 
 	return nil
@@ -106,11 +95,10 @@ func main() {
 	fmt.Println("RPC Port:", config.RPCPort)
 	fmt.Println("Send Port:", config.SendPort)
 
-	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/127.0.0.1/tcp/%d", config.RPCPort)))
+	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", config.RPCPort)))
 	if err != nil {
 		panic(err)
 	}
-
 	fmt.Println(node.Addrs())
 
 	// Connect to peers
