@@ -1,4 +1,4 @@
-FROM golang:1.21
+FROM golang:latest
 
 # Install system dependencies required for RocksDB
 RUN apt-get update && apt-get install -y \
@@ -9,12 +9,13 @@ RUN apt-get update && apt-get install -y \
     libbz2-dev \
     liblz4-dev \
     libzstd-dev \
-    git
+    git \
+    iputils-ping
 
 # Install RocksDB from source
-RUN git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb && \
-    cd /tmp/rocksdb && \
-    git checkout v7.6.3 && \  # Check for the latest stable version to use
+RUN git clone https://github.com/facebook/rocksdb.git /tmp/rocksdb
+RUN cd /tmp/rocksdb && \
+    git checkout main && \
     make shared_lib && \
     make install && \
     ldconfig
@@ -24,6 +25,7 @@ COPY go.mod go.sum myApp.go /app/
 
 # Set the working directory inside the container
 WORKDIR /app/
+
 
 # Download Go dependencies
 RUN go mod download
