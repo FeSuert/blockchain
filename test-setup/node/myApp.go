@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 
 	//"github.com/gorilla/rpc/json"
@@ -72,6 +73,13 @@ func main() {
 	}
 	// Den Konfigurationspfad aus den Programmargumenten abrufen
 	configPath := os.Args[1]
+
+	re := regexp.MustCompile(`\d+`)
+	numbers := re.FindString(configPath)
+	if numbers == "" {
+		return "", fmt.Errorf("no numbers found in filename")
+	}
+	nodeName := "node" + numbers
 
 	// Konfigurationsstruktur erstellen
 	var config Config
