@@ -2,5 +2,6 @@ peers = ["node2", "node3"]
 rpc_port = 7654
 send_port = 8765
 miners = ["0x479bbcee9567ea1af0178527e1a681900419cc76286b10c3521f82b1c048be27", "0x977114fb2d82afbad5d72c0e4f9a4ada703deb8d6e4e99a8b7ef548199026018"]
-private_key = "0x81e333807d5cecf723837d3ecdccdcbf20892667d1ed942c3c65af53f07ca923"
+adresses = ["/ip4/0.0.0.0/tcp/7654/p2p/31CS3LiQKFAo5sipHDc4vKCDJD4iQ5BkVwLEqjEaoBjZgQ6t6KbwPNpYxgEnbhtbbLmJcuKCxnJeP2zoDT1L1YYc", "/ip4/0.0.0.0/tcp/7654/p2p/23kxRQRLu8yaGaTqs7KSvonctCPZSiXC3CJGLGdYKrvS1QCnTk7YuimHpNW7RtNZm7WprYMe7zGANcQCJrtm5tQ4"]
+private_key = "0x6b1a0d8e1d151172bda9bb54ccbae6166f2eda3b55a2453e7d752e61abcb3573"
 mined_block_size = 2

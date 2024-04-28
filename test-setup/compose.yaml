@@ -5,6 +5,7 @@ services:
     volumes:
       - ./node1_data:/app/data
       - .node/myApp.go:/app/myApplication.go
+      - ./ids.toml:/app/ids.toml
     expose:
       - 7654
     command: ["/app/node", "/app/data/config1.toml"]
@@ -14,6 +15,7 @@ services:
     volumes:
       - ./node2_data:/app/data
       - .node/myApp.go:/app/myApplication.go
+      - ./ids.toml:/app/ids.toml
     command: ["/app/node", "/app/data/config2.toml"]
 
   node3:
@@ -21,6 +23,7 @@ services:
     volumes:
       - ./node3_data:/app/data
       - .node/myApp.go:/app/myApplication.go
+      - ./ids.toml:/app/ids.toml
     command: ["/app/node", "/app/data/config3.toml"]
 
   node4:
@@ -28,6 +31,7 @@ services:
     volumes:
       - ./node4_data:/app/data
       - .node/myApp.go:/app/myApplication.go
+      - ./ids.toml:/app/ids.toml
     command: ["/app/node", "/app/data/config4.toml"]
 
   node5:
@@ -35,6 +39,7 @@ services:
     volumes:
       - ./node5_data:/app/data
       - .node/myApp.go:/app/myApplication.go
+      - ./ids.toml:/app/ids.toml
     command: ["/app/node", "/app/data/config5.toml"]
 
   # tester1: &tests
