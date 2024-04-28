@@ -16,6 +16,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multibase"
+	"github.com/multiformats/go-multihash"
 	"github.com/pelletier/go-toml"
 )
 
@@ -79,7 +81,16 @@ func main() {
 	numbers := re.FindString(configPath)
 	nodeName := "node" + numbers
 	hash := sha256.Sum256([]byte(nodeName))
-	peerID := fmt.Sprintf("%x", hash)
+	mh, err := multihash.Sum(hash[:], multihash.SHA2_256, -1)
+	if err != nil {
+		panic(err)
+	}
+
+	// Encode the multihash in base58
+	encodedID, err := multibase.Encode(multibase.Base58BTC, mh)
+	if err != nil {
+		panic(err)
+	}
 	// Konfigurationsstruktur erstellen
 	var config Config
 
@@ -102,7 +113,7 @@ func main() {
 	fmt.Println("RPC Port:", config.RPCPort)
 	fmt.Println("Send Port:", config.SendPort)
 
-	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/p2p/%s", config.RPCPort, peerID)))
+	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d/p2p/%s", config.RPCPort, encodedID)))
 	if err != nil {
 		panic(err)
 	}
