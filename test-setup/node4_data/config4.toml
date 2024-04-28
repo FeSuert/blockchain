@@ -1,4 +1,4 @@
-peers = { node2 = "1028f45e50a253d49df638fbc1ba7f60868369376a41f01357a6e69ec9c45b52", node5 = "f370c4f5abd2406dfc14dc30ac181319481e721afd7a44cb6e4c283c0fe8f42e" }
+peers = ["node3", "node5"]
 rpc_port = 7654
 send_port = 8765
 miners = ["0x977114fb2d82afbad5d72c0e4f9a4ada703deb8d6e4e99a8b7ef548199026018", "0x7ff0e892bd30ab3036e983264e3f1880ce5f0bfb60a5843488a4a5ab9a3fab5e"]

@@ -22,9 +22,10 @@ import (
 )
 
 type Config struct {
-	Peers    []string `toml:"peers"`
-	RPCPort  int      `toml:"rpc_port"`
-	SendPort int      `toml:"send_port"`
+	Peers      map[string]string `toml:"peers"`
+	RPCPort    int               `toml:"rpc_port"`
+	SendPort   int               `toml:"send_port"`
+	PrivateKey string            `toml:"private_key"`
 }
 
 func connectToPeers(h host.Host, peers []string, defaultPort int) error {

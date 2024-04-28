@@ -1,4 +1,4 @@
-peers = { node3 = "977114fb2d82afbad5d72c0e4f9a4ada703deb8d6e4e99a8b7ef548199026018" }
+peers = ["node3"]
 rpc_port = 7654
 send_port = 8765
 miners = ["0x977114fb2d82afbad5d72c0e4f9a4ada703deb8d6e4e99a8b7ef548199026018"]
