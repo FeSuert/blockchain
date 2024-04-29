@@ -39,6 +39,20 @@ type IDs map[string]string
 var globalPeerIDs []*peer.AddrInfo
 var Nodename string
 
+func saveConfig(config *Config, configPath string) {
+	// Serialize the config to TOML
+	data, err := toml.Marshal(config)
+	if err != nil {
+		log.Fatalf("Error marshalling config: %s", err)
+	}
+
+	// Write the TOML data back to the file
+	err = os.WriteFile(configPath, data, 0644)
+	if err != nil {
+		log.Fatalf("Error writing config to file: %s", err)
+	}
+}
+
 func connectToPeer(h host.Host, ctx context.Context, hostAddr string, peerAddr string) (*peerstore.AddrInfo, error) {
 	// Konvertiere die Multiaddress des Hosts und des Peers in ein Multiaddr-Objekt
 	hostMultiAddr, err := ma.NewMultiaddr(hostAddr)
@@ -266,8 +280,21 @@ func main() {
 			config.Peers = append(config.Peers, receivedString)
 			fmt.Println("Updated Peers:", config.Peers)
 		}
-
 	})
+	for _, peer := range config.Peers {
+		nodeAddress, exists := configToml[peer]
+		if !exists {
+			fmt.Printf("Entry for node '%s' not found.\n", peer)
+			continue
+		}
+
+		fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
+		ctx := context.Background()
+		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
+		if err != nil {
+			fmt.Println("Error connecting to peer:", err)
+		}
+	}
 	time.Sleep(10 * time.Second)
 	for _, peer := range config.Peers {
 		nodeAddress, exists := configToml[peer]
@@ -290,6 +317,9 @@ func main() {
 		}
 		SendMessage(node, nodeAddress, "Hello from "+Nodename+"\n", "/chat/1.0.0")
 	}
+	time.Sleep(30 * time.Second)
+
+	saveConfig(&config, configPath)
 
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
