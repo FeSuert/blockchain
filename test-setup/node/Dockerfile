@@ -1,4 +1,4 @@
-FROM golang:latest
+FROM golang:1.22
 
 # Install system dependencies required for RocksDB
 RUN apt-get update && apt-get install -y \

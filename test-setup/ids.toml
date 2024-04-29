@@ -1,6 +1,5 @@
-node1 = "/ip4/172.23.0.5/tcp/8443/p2p/12D3KooWBJcCwQg67D2rBuuxvXNBDWYe8ZCLFPfgHTfSrK2r3HNb"
-node2 = "/ip4/172.23.0.6/tcp/8443/p2p/12D3KooWCpApBGUKs3bxx5ML6DYWo8Kj5ob2rFcT64ZfMskyvAdQ"
-node3 = "/ip4/172.23.0.4/tcp/8443/p2p/12D3KooWJyrCp2BKtzB8ZDLmsM8jxZsGwq5obfnYCkKBZ67Tok24"
-node4 = "/ip4/172.23.0.3/tcp/8443/p2p/12D3KooWSja2you9fTprsuzqDx9yKbUsgaY7HRFpSAKGG7DAR6Cc"
-node5 = "/ip4/172.23.0.2/tcp/8443/p2p/12D3KooWLcspog3cBwreqRQExHLt9MGNzkzhZTja5ias4KkU49HU"
-peers = ["node4\n"]
+node1 = "/ip4/172.18.0.4/tcp/8443/p2p/12D3KooWLGh3xmnyiAkaeBiLh6YLErB6T6CAj9KjwTEod9uRADo3"
+node2 = "/ip4/172.18.0.6/tcp/8443/p2p/12D3KooWAj4xXByfksaRpiMarPPE6Yp4ynJfKNkVqM2CV6gWi71N"
+node3 = "/ip4/172.18.0.3/tcp/8443/p2p/12D3KooWG3mWHYE8c5Af72EfotA1AbKXit9mMNtFRcUxErFKt8y7"
+node4 = "/ip4/172.18.0.5/tcp/8443/p2p/12D3KooWAmJiAiP9MLjSfHKE9q32T1eD6h6mf77rkxXNQLEMnEu6"
+node5 = "/ip4/172.18.0.2/tcp/8443/p2p/12D3KooWMXV1vV2HRACM56ZaUm5MJWQGtisHnGn7veqquroDWZXt"

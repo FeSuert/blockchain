@@ -249,6 +249,7 @@ func main() {
 			return
 		}
 		fmt.Println("Empfangener String:", receivedString)
+		fmt.Println(config.Peers)
 	})
 	node.SetStreamHandler("/application/1.0.0", func(s network.Stream) {
 		// Lies den eingehenden String
@@ -261,45 +262,11 @@ func main() {
 			return
 		}
 		fmt.Println("Empfangener String:", receivedString)
-		tree, err := toml.LoadFile("./config" + numbers + ".toml")
-		if err != nil {
-			// If there's an error loading the file (which includes the file being empty or non-existent), initialize a new tree.
-			tree, err = toml.TreeFromMap(map[string]interface{}{"peers": []string{}})
+		if receivedString != Nodename && !contains(config.Peers, receivedString) {
+			config.Peers = append(config.Peers, receivedString)
+			fmt.Println("Updated Peers:", config.Peers)
 		}
 
-		peers, ok := tree.Get("peers").([]interface{})
-		if !ok {
-			fmt.Println("Unexpected type for 'peers', expected []interface{}")
-			return
-		}
-
-		// Convert []interface{} to []string
-		peerStrs := make([]string, len(peers))
-		for i, p := range peers {
-			peerStrs[i], ok = p.(string)
-			if !ok {
-				fmt.Println("Error: non-string value in peers array")
-				return
-			}
-		}
-
-		if receivedString != Nodename && !contains(peerStrs, receivedString) {
-			peerStrs = append(peerStrs, receivedString) // Append new peer
-			tree.Set("peers", peerStrs)                 // Update the tree
-
-			f, err := os.Create(configPath)
-			if err != nil {
-				fmt.Println("Error opening file for writing:", err)
-				return
-			}
-			defer f.Close()
-
-			if _, err := tree.WriteTo(f); err != nil {
-				fmt.Println("Error writing TOML data to file:", err)
-			} else {
-				fmt.Println("Updated configuration file successfully.")
-			}
-		}
 	})
 	time.Sleep(10 * time.Second)
 	for _, peer := range config.Peers {
