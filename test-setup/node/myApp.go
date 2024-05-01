@@ -13,8 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	//"github.com/gorilla/rpc/json"
-
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -36,17 +34,14 @@ type Config struct {
 
 type IDs map[string]string
 
-var globalPeerIDs []*peer.AddrInfo
 var Nodename string
 
 func saveConfig(config *Config, configPath string) {
-	// Serialize the config to TOML
 	data, err := toml.Marshal(config)
 	if err != nil {
 		log.Fatalf("Error marshalling config: %s", err)
 	}
 
-	// Write the TOML data back to the file
 	err = os.WriteFile(configPath, data, 0644)
 	if err != nil {
 		log.Fatalf("Error writing config to file: %s", err)
@@ -54,7 +49,6 @@ func saveConfig(config *Config, configPath string) {
 }
 
 func connectToPeer(h host.Host, ctx context.Context, hostAddr string, peerAddr string) (*peerstore.AddrInfo, error) {
-	// Konvertiere die Multiaddress des Hosts und des Peers in ein Multiaddr-Objekt
 	hostMultiAddr, err := ma.NewMultiaddr(hostAddr)
 	if err != nil {
 		return nil, err
@@ -64,29 +58,19 @@ func connectToPeer(h host.Host, ctx context.Context, hostAddr string, peerAddr s
 		return nil, err
 	}
 
-	// Konvertiere die Multiaddress des Peers in einen PeerID
 	peerID, err := peer.AddrInfoFromP2pAddr(peerMultiAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	// Füge die Multiaddress des Hosts hinzu
 	peerID.Addrs = append(peerID.Addrs, hostMultiAddr)
 
-	// Verbinde sich mit dem Peer
 	if err := h.Connect(ctx, *peerID); err != nil {
 		return nil, err
 	}
 
-	fmt.Println("Verbunden mit Peer:", peerID.ID)
+	fmt.Println("Connected to Peer:", peerID.ID)
 	return peerID, nil
-}
-
-func handleError(err error) {
-	if err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
 }
 
 func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
@@ -94,29 +78,25 @@ func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
 	peerMultiAddr, err := ma.NewMultiaddr(peerAddr)
 	if err != nil {
 		fmt.Println("Error parsing multiaddress:", err)
+		return
 	}
 
 	peerInfo, err := peer.AddrInfoFromP2pAddr(peerMultiAddr)
 	if err != nil {
 		fmt.Println("Error converting to peer info:", err)
+		return
 	}
 
-	// Open a stream to the peer
 	stream, err := h.NewStream(ctx, peerInfo.ID, protocol)
 	if err != nil {
 		fmt.Println("Error opening stream to peer:", peerInfo.ID, err)
+		return
 	}
+	defer stream.Close()
 
-	// Send the message
 	_, err = stream.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error sending message to peer:", peerInfo.ID, err)
-	}
-
-	// Close the stream
-	err = stream.Close()
-	if err != nil {
-		fmt.Println("Error closing stream to peer:", peerInfo.ID, err)
 	}
 }
 
@@ -131,17 +111,12 @@ func handleStream(s network.Stream) {
 
 	fmt.Println("Received message:", message)
 
-	// Send an acknowledgment back
 	ackMsg := "ACK\n"
 	_, err = s.Write([]byte(ackMsg))
 	if err != nil {
 		fmt.Println("Failed to send ACK:", err)
 	}
 	s.Close()
-}
-
-func QueryAll() {
-	fmt.Println("Return all messages that were received")
 }
 
 func contains(slice []string, str string) bool {
@@ -155,35 +130,29 @@ func contains(slice []string, str string) bool {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Bitte geben Sie den Pfad zur Konfigurationsdatei als Argument ein.")
+		fmt.Println("Please provide the path to the configuration file as an argument.")
 		return
 	}
-	// Den Konfigurationspfad aus den Programmargumenten abrufen
 	configPath := os.Args[1]
 
-	// Read node name
 	re := regexp.MustCompile(`\d+`)
 	numbers := re.FindString(configPath)
 	Nodename = "node" + numbers
 
-	// Konfigurationsstruktur erstellen
 	var config Config
 
-	// Konfigurationsdatei öffnen und einlesen
 	file, err := os.Open(configPath)
 	if err != nil {
-		fmt.Println("Fehler beim Öffnen der Konfigurationsdatei:", err)
+		fmt.Println("Error opening config file:", err)
 		return
 	}
 	defer file.Close()
 
-	// Konfigurationsdatei analysieren und Daten in die Konfigurationsstruktur einfügen
 	if err := toml.NewDecoder(file).Decode(&config); err != nil {
-		fmt.Println("Fehler beim Lesen der Konfigurationsdatei:", err)
+		fmt.Println("Error reading config file:", err)
 		return
 	}
 
-	// Konfigurationswerte ausgeben
 	fmt.Println("Peers:", config.Peers)
 	fmt.Println("RPC Port:", config.RPCPort)
 	fmt.Println("Send Port:", config.SendPort)
@@ -198,27 +167,36 @@ func main() {
 		Addrs: node.Addrs(),
 	}
 	addrs, err := peerstore.AddrInfoToP2pAddrs(&peerInfo)
+	if err != nil {
+		fmt.Println("Error getting node address:", err)
+		return
+	}
 	fmt.Println("libp2p node address:", addrs[0])
-	// Erstelle den Pfad zur ids.toml-Datei
+
 	filePath := "ids.toml"
 	num, err := strconv.Atoi(numbers)
+	if err != nil {
+		fmt.Println("Invalid node number:", err)
+		return
+	}
 	time.Sleep(time.Duration(num+3) * time.Second)
 	tree, err := toml.LoadFile(filePath)
 	if err != nil {
-		// If there's an error loading the file (which includes the file being empty or non-existent), initialize a new tree.
 		tree, err = toml.TreeFromMap(map[string]interface{}{})
+		if err != nil {
+			fmt.Println("Error initializing TOML tree:", err)
+			return
+		}
 	}
 
 	tree.Set(Nodename, addrs[0].String())
 
-	// Open or create the file
 	f, err := os.Create(filePath)
 	if err != nil {
 		fmt.Println("Error opening file for writing:", err)
 		return
 	}
 	defer f.Close()
-	// Write the updated tree to the file
 	if _, err := tree.WriteTo(f); err != nil {
 		fmt.Println("Error writing TOML data to file:", err)
 		return
@@ -228,18 +206,16 @@ func main() {
 
 	file, err = os.Open("ids.toml")
 	if err != nil {
-		log.Fatal("Fehler beim Öffnen der Datei:", err)
+		log.Fatal("Error opening file:", err)
 	}
 	defer file.Close()
 
-	// Parse die ids.toml-Datei
 	var configToml IDs
 	if err := toml.NewDecoder(file).Decode(&configToml); err != nil {
-		fmt.Println("Fehler beim Lesen der Konfigurationsdatei:", err)
+		fmt.Println("Error reading config file:", err)
 		return
 	}
 
-	// Iteriere über jeden String-Eintrag in config.peer
 	for _, peer := range config.Peers {
 		nodeAddress, exists := configToml[peer]
 		if !exists {
@@ -254,33 +230,32 @@ func main() {
 			fmt.Println("Error connecting to peer:", err)
 		}
 	}
+
 	node.SetStreamHandler("/chat/1.0.0", func(s network.Stream) {
-		// Lies den eingehenden String
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+			fmt.Println("Error reading incoming string:", err)
 			return
 		}
-		fmt.Println("Empfangener String:", receivedString)
-		fmt.Println(config.Peers)
+		fmt.Println("Received string:", receivedString)
 	})
+
 	node.SetStreamHandler("/application/1.0.0", func(s network.Stream) {
-		// Lies den eingehenden String
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		receivedString = strings.TrimSpace(receivedString)
-
 		if err != nil {
-			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+			fmt.Println("Error reading incoming string:", err)
 			return
 		}
-		fmt.Println("Empfangener String:", receivedString)
+		fmt.Println("Received string:", receivedString)
 		if receivedString != Nodename && !contains(config.Peers, receivedString) {
 			config.Peers = append(config.Peers, receivedString)
 			fmt.Println("Updated Peers:", config.Peers)
 		}
 	})
+
 	for _, peer := range config.Peers {
 		nodeAddress, exists := configToml[peer]
 		if !exists {
@@ -295,6 +270,7 @@ func main() {
 			fmt.Println("Error connecting to peer:", err)
 		}
 	}
+
 	time.Sleep(10 * time.Second)
 	for _, peer := range config.Peers {
 		nodeAddress, exists := configToml[peer]
@@ -303,9 +279,7 @@ func main() {
 			continue
 		}
 		for _, peer1 := range config.Peers {
-			{
-				SendMessage(node, nodeAddress, peer1+"\n", "/application/1.0.0")
-			}
+			SendMessage(node, nodeAddress, peer1+"\n", "/application/1.0.0")
 			SendMessage(node, nodeAddress, Nodename+"\n", "/application/1.0.0")
 		}
 	}
@@ -317,10 +291,11 @@ func main() {
 		}
 		SendMessage(node, nodeAddress, "Hello from "+Nodename+"\n", "/chat/1.0.0")
 	}
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	saveConfig(&config, configPath)
 
+	time.Sleep(50 * time.Second)
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
 	<-sigCh
