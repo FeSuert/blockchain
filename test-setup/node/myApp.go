@@ -295,7 +295,7 @@ func main() {
 
 	saveConfig(&config, configPath)
 
-	time.Sleep(50 * time.Second)
+	time.Sleep(10 * time.Second)
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
 	<-sigCh
