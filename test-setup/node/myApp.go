@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,10 +33,45 @@ type Config struct {
 	PrivateKey     string   `toml:"private_key"`
 	MinedBlockSize int64    `toml:"mined_block_size"`
 }
+type Message struct {
+	Time    time.Time
+	Content string
+}
+
+var (
+	fileMutex sync.Mutex
+)
 
 type IDs map[string]string
 
 var Nodename string
+
+func QueryAll(nodeName string, h host.Host, nodeAddress string) {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
+
+	filePath := "./data/sorted_messages.txt"
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+	if nodeAddress == "" {
+		fmt.Println("Address not found for node:", nodeName)
+		return
+	}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		message := scanner.Text()
+		fmt.Println(message)
+		SendMessage(h, nodeAddress, message, "/chat/1.0.0")
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+	}
+}
 
 func saveConfig(config *Config, configPath string) {
 	data, err := toml.Marshal(config)
@@ -99,26 +136,6 @@ func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
 		fmt.Println("Error sending message to peer:", peerInfo.ID, err)
 	}
 }
-
-func handleStream(s network.Stream) {
-	reader := bufio.NewReader(s)
-	message, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Println("Error reading from stream:", err)
-		s.Close()
-		return
-	}
-
-	fmt.Println("Received message:", message)
-
-	ackMsg := "ACK\n"
-	_, err = s.Write([]byte(ackMsg))
-	if err != nil {
-		fmt.Println("Failed to send ACK:", err)
-	}
-	s.Close()
-}
-
 func contains(slice []string, str string) bool {
 	for _, v := range slice {
 		if v == str {
@@ -126,6 +143,78 @@ func contains(slice []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func UpdateFile(message Message) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
+
+	// Read the current contents of the file
+	filePath := "./data/sorted_messages.txt"
+	lines, err := readAllLines(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Format the new message in the correct format
+	newLine := fmt.Sprintf("%s|%s", message.Time.Format(time.RFC3339), message.Content)
+
+	// Check if the message already exists
+	for _, line := range lines {
+		if line == newLine {
+			fmt.Println("Duplicate message found, skipping:", newLine)
+			return nil
+		}
+	}
+
+	// Append the new message if it's unique
+	lines = append(lines, newLine)
+
+	// Sort the lines based on the timestamp
+	sort.SliceStable(lines, func(i, j int) bool {
+		time1, _ := time.Parse(time.RFC3339, strings.SplitN(lines[i], "|", 2)[0])
+		time2, _ := time.Parse(time.RFC3339, strings.SplitN(lines[j], "|", 2)[0])
+		return time1.Before(time2)
+	})
+
+	// Write the sorted lines back to the file
+	return writeAllLines(filePath, lines)
+}
+
+// readAllLines reads all lines from the file
+func readAllLines(filePath string) ([]string, error) {
+	file, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return lines, nil
+}
+
+func writeAllLines(filePath string, lines []string) error {
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	for _, line := range lines {
+		fmt.Fprintln(writer, line)
+	}
+
+	return writer.Flush()
 }
 
 func main() {
@@ -153,15 +242,15 @@ func main() {
 		return
 	}
 
-	fmt.Println("Peers:", config.Peers)
-	fmt.Println("RPC Port:", config.RPCPort)
-	fmt.Println("Send Port:", config.SendPort)
+	// fmt.Println("Peers:", config.Peers)
+	// fmt.Println("RPC Port:", config.RPCPort)
+	// fmt.Println("Send Port:", config.SendPort)
 
 	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/dns4/%s/tcp/8443", Nodename)))
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(node.Addrs())
+	// fmt.Println(node.Addrs())
 	peerInfo := peerstore.AddrInfo{
 		ID:    node.ID(),
 		Addrs: node.Addrs(),
@@ -171,7 +260,7 @@ func main() {
 		fmt.Println("Error getting node address:", err)
 		return
 	}
-	fmt.Println("libp2p node address:", addrs[0])
+	// fmt.Println("libp2p node address:", addrs[0])
 
 	filePath := "ids.toml"
 	num, err := strconv.Atoi(numbers)
@@ -215,6 +304,7 @@ func main() {
 		fmt.Println("Error reading config file:", err)
 		return
 	}
+	// fmt.Println(configToml)
 
 	for _, peer := range config.Peers {
 		nodeAddress, exists := configToml[peer]
@@ -223,7 +313,7 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
+		// fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
 		ctx := context.Background()
 		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
 		if err != nil {
@@ -235,10 +325,54 @@ func main() {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Println("Error reading incoming string:", err)
-			return
+			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
 		}
 		fmt.Println("Received string:", receivedString)
+
+		// Parsen des empfangenen Strings
+		if strings.HasPrefix(receivedString, "Hello from node") {
+			// Extrahieren der Zahl x aus der Nachricht
+			x := receivedString[len("Hello from node") : len("Hello from node")+1]
+			file, err = os.Open("ids.toml")
+			if err != nil {
+				log.Fatal("Error opening file:", err)
+			}
+			defer file.Close()
+			if err := toml.NewDecoder(file).Decode(&configToml); err != nil {
+				fmt.Println("Error reading config file:", err)
+				return
+			}
+			// Aufrufen von QuerryAll mit der extrahierten Zahl x
+			ctx := context.Background()
+			_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), configToml["node"+x])
+			fmt.Println(err)
+			QueryAll("node"+x, node, configToml["node"+x])
+		} else {
+			parts := strings.SplitN(receivedString, "|", 2)
+			if len(parts) != 2 {
+				fmt.Println("Ungültiges Eingabeformat:", receivedString)
+				return
+			}
+			content := strings.TrimSpace(parts[1])
+			time, err := time.Parse(time.RFC3339, parts[0])
+			if err != nil {
+				fmt.Println("Fehler beim Parsen der Zeit:", err)
+				return
+			}
+
+			// Erstellen einer Nachricht
+			message := Message{
+				Time:    time,
+				Content: content,
+			}
+
+			// Aktualisieren der Datei
+			err = UpdateFile(message)
+			if err != nil {
+				fmt.Println("Fehler beim Aktualisieren der Datei:", err)
+				return
+			}
+		}
 	})
 
 	node.SetStreamHandler("/application/1.0.0", func(s network.Stream) {
@@ -249,10 +383,10 @@ func main() {
 			fmt.Println("Error reading incoming string:", err)
 			return
 		}
-		fmt.Println("Received string:", receivedString)
+		// fmt.Println("Received string:", receivedString)
 		if receivedString != Nodename && !contains(config.Peers, receivedString) {
 			config.Peers = append(config.Peers, receivedString)
-			fmt.Println("Updated Peers:", config.Peers)
+			// fmt.Println("Updated Peers:", config.Peers)
 		}
 	})
 
@@ -263,39 +397,61 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
+		// fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
 		ctx := context.Background()
 		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
 		if err != nil {
 			fmt.Println("Error connecting to peer:", err)
-		}
-	}
-
-	time.Sleep(10 * time.Second)
-	for _, peer := range config.Peers {
-		nodeAddress, exists := configToml[peer]
-		if !exists {
-			fmt.Printf("Entry for node '%s' not found.\n", peer)
-			continue
 		}
 		for _, peer1 := range config.Peers {
 			SendMessage(node, nodeAddress, peer1+"\n", "/application/1.0.0")
 			SendMessage(node, nodeAddress, Nodename+"\n", "/application/1.0.0")
 		}
 	}
+	time.Sleep(5 * time.Second)
+
 	for _, peer := range config.Peers {
 		nodeAddress, exists := configToml[peer]
 		if !exists {
 			fmt.Printf("Entry for node '%s' not found.\n", peer)
 			continue
 		}
-		SendMessage(node, nodeAddress, "Hello from "+Nodename+"\n", "/chat/1.0.0")
+
+		// fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
+		ctx := context.Background()
+		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
+		if err != nil {
+			fmt.Println("Error connecting to peer:", err)
+		}
+		for _, peer1 := range config.Peers {
+			SendMessage(node, nodeAddress, peer1+"\n", "/application/1.0.0")
+			SendMessage(node, nodeAddress, Nodename+"\n", "/application/1.0.0")
+			SendMessage(node, nodeAddress, "Hello from "+Nodename+"\n", "/chat/1.0.0")
+		}
 	}
 	time.Sleep(5 * time.Second)
 
+	message := Message{
+		Time:    time.Now(),
+		Content: "Message from " + Nodename,
+	}
+	UpdateFile(message)
+	for _, peer := range config.Peers {
+		nodeAddress, exists := configToml[peer]
+		if !exists {
+			fmt.Printf("Entry for node '%s' not found.\n", peer)
+			continue
+		}
+		ctx := context.Background()
+		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
+		timeParts := strings.Split(message.Time.String(), " ")
+		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+		SendMessage(node, nodeAddress, timeStr+"|Message from "+Nodename+"\n", "/chat/1.0.0")
+	}
+
 	saveConfig(&config, configPath)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(60 * time.Second)
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
 	<-sigCh
