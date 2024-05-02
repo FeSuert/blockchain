@@ -4,7 +4,7 @@ services:
     build: node
     volumes:
       - ./node1_data:/app/data
-      - .node/myApp.go:/app/myApplication.go
+      - ./node/myApp.go:/app/myApplication.go
       - ./ids.toml:/app/ids.toml
     expose:
       - 7654
@@ -14,46 +14,54 @@ services:
     <<: *node
     volumes:
       - ./node2_data:/app/data
-      - .node/myApp.go:/app/myApplication.go
+      - ./node/myApp.go:/app/myApplication.go
       - ./ids.toml:/app/ids.toml
+    expose:
+      - 7654
     command: ["/app/node", "/app/data/config2.toml"]
 
   node3:
     <<: *node
     volumes:
       - ./node3_data:/app/data
-      - .node/myApp.go:/app/myApplication.go
+      - ./node/myApp.go:/app/myApplication.go
       - ./ids.toml:/app/ids.toml
+    expose:
+      - 7654
     command: ["/app/node", "/app/data/config3.toml"]
 
   node4:
     <<: *node
     volumes:
       - ./node4_data:/app/data
-      - .node/myApp.go:/app/myApplication.go
+      - ./node/myApp.go:/app/myApplication.go
       - ./ids.toml:/app/ids.toml
+    expose:
+      - 7654
     command: ["/app/node", "/app/data/config4.toml"]
 
   node5:
     <<: *node
     volumes:
       - ./node5_data:/app/data
-      - .node/myApp.go:/app/myApplication.go
+      - ./node/myApp.go:/app/myApplication.go
       - ./ids.toml:/app/ids.toml
+    expose:
+      - 7654
     command: ["/app/node", "/app/data/config5.toml"]
 
-  # tester1: &tests
-  #   build: tests
-  #   volumes:
-  #     - ./tests:/tests
-  #   working_dir: /tests
-  #   command: ["python3", "tests.py", "phase1"]
-  #   depends_on:
-  #     - node1
-  #     - node2
-  #     - node3
-  #     - node4
-  #     - node5
+  tester1: &tests
+    build: tests
+    volumes:
+      - ./tests:/tests
+    working_dir: /tests
+    command: ["python3", "tests.py", "phase1"]
+    depends_on:
+      - node1
+      - node2
+      - node3
+      - node4
+      - node5
 
-  # tester2:
-  #   <<: *tests
+  tester2:
+    <<: *tests

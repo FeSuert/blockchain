@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
@@ -15,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/rpc/v2"
+	"github.com/gorilla/rpc/v2/json"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -45,6 +48,105 @@ var (
 type IDs map[string]string
 
 var Nodename string
+
+type GossipService struct{}
+
+type BroadcastRequest struct {
+	Message string
+}
+
+var (
+	config     Config
+	configToml IDs
+	node       host.Host
+)
+
+func (s *GossipService) Broadcast(r *http.Request, req *BroadcastRequest, res *struct{}) error {
+	msg := Message{
+		Time:    time.Now(),
+		Content: req.Message,
+	}
+	fmt.Println("Broadcasting message" + req.Message)
+	// Iterate through peers and send the message
+	for _, peer := range config.Peers {
+		nodeAddress, exists := configToml[peer]
+		if !exists {
+			fmt.Printf("Entry for node '%s' not found.\n", peer)
+			continue
+		}
+
+		ctx := context.Background()
+		_, err := connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
+		if err != nil {
+			fmt.Println("Error connecting to peer:", err)
+			continue
+		}
+
+		timeParts := strings.Split(msg.Time.String(), " ")
+		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+
+		SendMessage(node, nodeAddress, timeStr+"|"+req.Message+"\n", "/chat/1.0.0")
+	}
+
+	return nil
+}
+
+func (s *RPCServer) QueryAll(args interface{}, reply *[]string) error {
+	fmt.Println("Querying all messages")
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
+
+	filePath := "./data/sorted_messages.txt"
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return nil
+	}
+	defer file.Close()
+	var messages []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		message := scanner.Text()
+		fmt.Println(message)
+		parts := strings.SplitN(message, "|", 2)
+		message = strings.TrimSpace(parts[1])
+		messages = append(messages, message)
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+	}
+	err = sendReply(send_port, messages)
+	*reply = messages
+	return nil
+}
+
+// func (s *GossipService) QueryAll(r *http.Request, req *struct{}, res *QueryAllResponse) error {
+// 	var messageList []string
+// 	for _, msg := range messages {
+// 		messageList = append(messageList, msg.Time.Format(time.RFC3339)+"|"+msg.Content)
+// 	}
+
+// 	// Populate the response with all the messages
+// 	res.Messages = messageList
+
+// 	return nil
+// }
+
+func StartRPCServer() {
+	s := rpc.NewServer()
+	s.RegisterCodec(json.NewCodec(), "application/json")
+	s.RegisterService(new(GossipService), "")
+
+	http.Handle("/rpc", s)
+
+	go func() {
+		err := http.ListenAndServe(fmt.Sprintf(":%d", config.RPCPort), nil)
+		if err != nil {
+			fmt.Println("Error starting server:", err)
+		}
+	}()
+}
 
 func QueryAll(nodeName string, h host.Host, nodeAddress string) {
 	fileMutex.Lock()
@@ -228,8 +330,6 @@ func main() {
 	numbers := re.FindString(configPath)
 	Nodename = "node" + numbers
 
-	var config Config
-
 	file, err := os.Open(configPath)
 	if err != nil {
 		fmt.Println("Error opening config file:", err)
@@ -246,7 +346,7 @@ func main() {
 	// fmt.Println("RPC Port:", config.RPCPort)
 	// fmt.Println("Send Port:", config.SendPort)
 
-	node, err := libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/dns4/%s/tcp/8443", Nodename)))
+	node, err = libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/dns4/%s/tcp/8443", Nodename)))
 	if err != nil {
 		panic(err)
 	}
@@ -299,12 +399,13 @@ func main() {
 	}
 	defer file.Close()
 
-	var configToml IDs
 	if err := toml.NewDecoder(file).Decode(&configToml); err != nil {
 		fmt.Println("Error reading config file:", err)
 		return
 	}
 	// fmt.Println(configToml)
+	fmt.Println("Starting RPC Server")
+	StartRPCServer()
 
 	for _, peer := range config.Peers {
 		nodeAddress, exists := configToml[peer]
