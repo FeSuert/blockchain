@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -55,6 +56,10 @@ type BroadcastRequest struct {
 	Message string
 }
 
+type QueryAllResponse struct {
+	Messages []string `json:"messages"`
+}
+
 var (
 	config     Config
 	configToml IDs
@@ -91,47 +96,36 @@ func (s *GossipService) Broadcast(r *http.Request, req *BroadcastRequest, res *s
 	return nil
 }
 
-func (s *RPCServer) QueryAll(args interface{}, reply *[]string) error {
-	fmt.Println("Querying all messages")
-	fileMutex.Lock()
-	defer fileMutex.Unlock()
-
+func (s *GossipService) QueryAll(r *http.Request, req *struct{}, res *QueryAllResponse) error {
+	// Reading messages from sorted_messages.txt
 	filePath := "./data/sorted_messages.txt"
-	file, err := os.Open(filePath)
+	lines, err := readAllLines(filePath)
 	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return nil
-	}
-	defer file.Close()
-	var messages []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		message := scanner.Text()
-		fmt.Println(message)
-		parts := strings.SplitN(message, "|", 2)
-		message = strings.TrimSpace(parts[1])
-		messages = append(messages, message)
+		return err
 	}
 
-	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
+	// Add messages to the response
+	res.Messages = lines
+
+	// Send messages to config.SendPort
+	address := fmt.Sprintf("localhost:%d", config.SendPort)
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		fmt.Println("Error connecting:", err)
+		return err
 	}
-	err = sendReply(send_port, messages)
-	*reply = messages
+	defer conn.Close()
+
+	for _, message := range lines {
+		_, err = conn.Write([]byte(message + "\n"))
+		if err != nil {
+			fmt.Println("Error sending message:", err)
+			return err
+		}
+	}
+
 	return nil
 }
-
-// func (s *GossipService) QueryAll(r *http.Request, req *struct{}, res *QueryAllResponse) error {
-// 	var messageList []string
-// 	for _, msg := range messages {
-// 		messageList = append(messageList, msg.Time.Format(time.RFC3339)+"|"+msg.Content)
-// 	}
-
-// 	// Populate the response with all the messages
-// 	res.Messages = messageList
-
-// 	return nil
-// }
 
 func StartRPCServer() {
 	s := rpc.NewServer()

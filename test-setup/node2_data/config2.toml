@@ -1,6 +1,6 @@
 mined_block_size = 2
 miners = ["0x977114fb2d82afbad5d72c0e4f9a4ada703deb8d6e4e99a8b7ef548199026018"]
-peers = ["node3", "node1", "node4", "node5"]
+peers = ["node3", "node1"]
 private_key = "0x6b1a0d8e1d151172bda9bb54ccbae6166f2eda3b55a2453e7d752e61abcb3573"
 rpc_port = 7654
 send_port = 8765
