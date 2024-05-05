@@ -182,6 +182,7 @@ func main() {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		receivedString = strings.TrimSpace(receivedString)
+		fmt.Println("Received message:" + receivedString)
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
 			return
@@ -212,6 +213,7 @@ func main() {
 				SendMessage(node, address, knownPeer+"\n", "/peers")
 			}
 		}
+		SendMessage(node, address, nodeName+"\n", "/peers")
 	}
 	time.Sleep(1 * time.Second)
 	saveConfig(&config, configPath)
