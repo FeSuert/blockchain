@@ -87,9 +87,16 @@ func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	var result []string
-	for _, msg := range s.messages {
-		result = append(result, msg.Content)
+
+	filePath := "./data/sorted_messages.txt"
+	lines, _ := readAllLines(filePath)
+
+	for _, line := range lines {
+		parts := strings.SplitN(line, "|", 2)
+		result = append(result, parts[1])
+
 	}
+
 	return result, nil
 }
 
@@ -181,6 +188,16 @@ func UpdateFile(message Message) error {
 			fmt.Println("Duplicate message found, skipping:", newLine)
 			return nil
 		}
+	}
+
+	for _, peer := range config.Peers {
+		fmt.Println("Sending message to peer " + peer)
+		re := regexp.MustCompile(`\d+`)
+		id, _ := strconv.Atoi(re.FindString(peer))
+		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+		connectToPeer(node, peerID, address)
+		SendMessage(node, address, newLine, "/chat")
 	}
 
 	// Append the new message if it's unique
@@ -373,6 +390,22 @@ func main() {
 			config.Peers = append(config.Peers, receivedString)
 			// fmt.Println("Updated Peers:", config.Peers)
 		}
+		for _, peer := range config.Peers {
+			fmt.Println("Sending message to peer " + peer)
+			re := regexp.MustCompile(`\d+`)
+			id, _ := strconv.Atoi(re.FindString(peer))
+			peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+			connectToPeer(node, peerID, address)
+
+			filePath := "./data/sorted_messages.txt"
+			lines, _ := readAllLines(filePath)
+
+			// Check if the message already exists
+			for _, line := range lines {
+				SendMessage(node, address, line, "/chat")
+			}
+		}
 	})
 
 	node.SetStreamHandler("/chat", func(s network.Stream) {
@@ -382,6 +415,7 @@ func main() {
 		if err != nil {
 			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
 		}
+
 		parts := strings.SplitN(receivedString, "|", 2)
 		if len(parts) != 2 {
 			fmt.Println("Ungültiges Eingabeformat:", receivedString)
