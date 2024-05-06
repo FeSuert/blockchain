@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
@@ -25,12 +27,8 @@ import (
 	prt "github.com/libp2p/go-libp2p/core/protocol"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/pelletier/go-toml"
+	"github.com/ybbus/jsonrpc"
 )
-
-type Message struct {
-	Time    time.Time
-	Content string
-}
 
 var (
 	fileMutex sync.Mutex
@@ -51,6 +49,94 @@ var (
 	config Config
 	node   host.Host
 )
+
+type Message struct {
+	Time    time.Time `json:"time"`
+	Content string    `json:"content"`
+}
+
+type JSONRPCServer struct {
+	mux      sync.RWMutex
+	messages []Message
+}
+
+func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
+	msg := Message{Time: time.Now(), Content: message}
+	s.mux.Lock()
+	s.messages = append(s.messages, msg)
+	s.mux.Unlock()
+	fmt.Println("Broadcasting:", msg)
+	return nil, nil
+}
+
+func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	var result []string
+	for _, msg := range s.messages {
+		result = append(result, msg.Content)
+	}
+	return result, nil
+}
+
+func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			JSONRPC string        `json:"jsonrpc"`
+			Method  string        `json:"method"`
+			Params  []interface{} `json:"params"`
+			ID      interface{}   `json:"id"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid JSON request", http.StatusBadRequest)
+			return
+		}
+
+		var result interface{}
+		var rpcErr *jsonrpc.RPCError
+
+		switch req.Method {
+		case "Node.Broadcast":
+			if len(req.Params) > 0 {
+				if message, ok := req.Params[0].(string); ok {
+					result, rpcErr = s.Broadcast(message)
+				} else {
+					rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
+				}
+			}
+		case "Node.QueryAll":
+			result, rpcErr = s.QueryAll()
+		default:
+			rpcErr = &jsonrpc.RPCError{Code: -32601, Message: "Method not found"}
+		}
+
+		response := struct {
+			JSONRPC string            `json:"jsonrpc"`
+			ID      interface{}       `json:"id"`
+			Result  interface{}       `json:"result,omitempty"`
+			Error   *jsonrpc.RPCError `json:"error,omitempty"`
+		}{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  result,
+			Error:   rpcErr,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			fmt.Println("Error encoding response:", err)
+		}
+	}
+}
+
+func StartJSONRPCServer(port int, server *JSONRPCServer) {
+	http.HandleFunc("/rpc", handleJSONRPC(server))
+	fmt.Printf("Starting JSON-RPC server on all interfaces, port %d\n", port)
+	if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil); err != nil {
+		fmt.Println("Error starting JSON-RPC server:", err)
+	}
+}
 
 func contains(slice []string, str string) bool {
 	for _, v := range slice {
@@ -209,6 +295,9 @@ func main() {
 	}
 	configPath := os.Args[1]
 
+	server := &JSONRPCServer{}
+	go StartJSONRPCServer(7654, server)
+
 	re := regexp.MustCompile(`\d+`)
 	numbers := re.FindString(configPath)
 	nodeName = "node" + numbers
@@ -326,23 +415,23 @@ func main() {
 		}
 		SendMessage(node, address, nodeName+"\n", "/peers")
 	}
-	time.Sleep(1 * time.Second)
-	message := Message{
-		Time:    time.Now(),
-		Content: "Message from " + nodeName,
-	}
-	UpdateFile(message)
-	for _, peer := range config.Peers {
-		fmt.Println("Sending message to peer " + peer)
-		re := regexp.MustCompile(`\d+`)
-		id, _ := strconv.Atoi(re.FindString(peer))
-		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
-		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-		connectToPeer(node, peerID, address)
-		timeParts := strings.Split(message.Time.String(), " ")
-		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
-		SendMessage(node, address, timeStr+"|Message from "+nodeName+"\n", "/chat")
-	}
+	// time.Sleep(1 * time.Second)
+	// message := Message{
+	// 	Time:    time.Now(),
+	// 	Content: "Message from " + nodeName,
+	// }
+	// UpdateFile(message)
+	// for _, peer := range config.Peers {
+	// 	fmt.Println("Sending message to peer " + peer)
+	// 	re := regexp.MustCompile(`\d+`)
+	// 	id, _ := strconv.Atoi(re.FindString(peer))
+	// 	peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+	// 	address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+	// 	connectToPeer(node, peerID, address)
+	// 	timeParts := strings.Split(message.Time.String(), " ")
+	// 	timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+	// 	SendMessage(node, address, timeStr+"|Message from "+nodeName+"\n", "/chat")
+	// }
 
 	time.Sleep(1 * time.Second)
 
