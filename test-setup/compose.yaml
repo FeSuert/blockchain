@@ -55,6 +55,7 @@ services:
     volumes:
       - ./tests:/tests
     working_dir: /tests
+    #command: ["sleep", "500"]
     command: ["python3", "tests.py", "phase1"]
     depends_on:
       - node1

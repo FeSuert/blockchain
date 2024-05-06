@@ -61,11 +61,25 @@ type JSONRPCServer struct {
 }
 
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
-	msg := Message{Time: time.Now(), Content: message}
+	time := time.Now()
+	msg := Message{Time: time, Content: message}
 	s.mux.Lock()
 	s.messages = append(s.messages, msg)
 	s.mux.Unlock()
 	fmt.Println("Broadcasting:", msg)
+
+	UpdateFile(msg)
+	for _, peer := range config.Peers {
+		fmt.Println("Sending message to peer " + peer)
+		re := regexp.MustCompile(`\d+`)
+		id, _ := strconv.Atoi(re.FindString(peer))
+		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+		connectToPeer(node, peerID, address)
+		timeParts := strings.Split(time.String(), " ")
+		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+		SendMessage(node, address, timeStr+"|"+message+"\n", "/chat")
+	}
 	return nil, nil
 }
 
@@ -133,7 +147,7 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 func StartJSONRPCServer(port int, server *JSONRPCServer) {
 	http.HandleFunc("/rpc", handleJSONRPC(server))
 	fmt.Printf("Starting JSON-RPC server on all interfaces, port %d\n", port)
-	if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", "0.0.0.0", port), nil); err != nil {
 		fmt.Println("Error starting JSON-RPC server:", err)
 	}
 }

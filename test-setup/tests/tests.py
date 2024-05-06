@@ -20,12 +20,18 @@ def rpc(url, method, arg):
         "jsonrpc": "2.0",
         "id": 0,
     }
-    return requests.post(url, data=json.dumps(payload), headers=headers).json()
+    print(url)
+    print(json.dumps(payload))
+    print(headers)
+    response = requests.post(url, data=json.dumps(payload), headers=headers)
+    print("Response Text:", response.text)
+    return response.json()  # Ensure response is valid JSON
+
 
 
 def send_messages1():
     for _ in range(15):
-        url = f"http://node{random.choice(range(1, n+1))}:{rpc_port}"
+        url = f"http://node{random.choice(range(1, n+1))}:{rpc_port}/rpc"
         rpc(url, "Node.Broadcast", [f"user {random.choice(range(1, 15))} says hello"])
 
 
