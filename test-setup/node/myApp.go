@@ -78,7 +78,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 		connectToPeer(node, peerID, address)
 		timeParts := strings.Split(time.String(), " ")
 		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
-		SendMessage(node, address, timeStr+"|"+message, "/chat")
+		SendMessage(node, address, timeStr+"|"+message+"\n", "/chat")
 	}
 	return nil, nil
 }
