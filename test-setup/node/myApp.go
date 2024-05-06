@@ -180,7 +180,7 @@ func UpdateFile(message Message) error {
 	}
 
 	// Format the new message in the correct format
-	newLine := fmt.Sprintf("%s|%s", message.Time.Format(time.RFC3339), message.Content)
+	newLine := fmt.Sprintf("%s|%s", message.Time.String(), message.Content)
 
 	// Check if the message already exists
 	for _, line := range lines {
