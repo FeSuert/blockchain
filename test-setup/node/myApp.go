@@ -197,7 +197,7 @@ func UpdateFile(message Message) error {
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 		connectToPeer(node, peerID, address)
-		SendMessage(node, address, newLine, "/chat")
+		SendMessage(node, address, newLine+"\n", "/chat")
 	}
 
 	// Append the new message if it's unique
