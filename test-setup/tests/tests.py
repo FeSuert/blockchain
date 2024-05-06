@@ -38,7 +38,7 @@ def send_messages1():
 def send_messages2():
     for _ in range(15):
         not3 = list(set(range(1, n+1))-{3})
-        url = f"http://node{random.choice(not3)}:{rpc_port}"
+        url = f"http://node{random.choice(not3)}:{rpc_port}/rpc"
         rpc(url, "Node.Broadcast", [f"user {random.choice(range(1, 15))} says hello"])
 
 
