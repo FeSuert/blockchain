@@ -46,7 +46,7 @@ def check_outputs():
     for i in range(1, n+1):
         if i == 3:
             continue
-        url = f"http://node{i}:{rpc_port}"
+        url = f"http://node{i}:{rpc_port}/rpc"
         output = rpc(url, "Node.QueryAll", [])['result']
         logging.info('\n'.join(
             [f'node{i}:']+[f'    {message}' for message in output]
