@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,16 +19,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/rpc/v2"
-	"github.com/gorilla/rpc/v2/json"
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	peerstore "github.com/libp2p/go-libp2p/core/peer"
 	prt "github.com/libp2p/go-libp2p/core/protocol"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/pelletier/go-toml"
+	"github.com/ybbus/jsonrpc"
+)
+
+var (
+	fileMutex sync.Mutex
 )
 
 type Config struct {
@@ -37,201 +42,102 @@ type Config struct {
 	PrivateKey     string   `toml:"private_key"`
 	MinedBlockSize int64    `toml:"mined_block_size"`
 }
+
+var nodeName string
+
+var (
+	config Config
+	node   host.Host
+)
+
 type Message struct {
-	Time    time.Time
-	Content string
+	Time    time.Time `json:"time"`
+	Content string    `json:"content"`
 }
 
-var (
-	fileMutex sync.Mutex
-)
-
-type IDs map[string]string
-
-var Nodename string
-
-type GossipService struct{}
-
-type BroadcastRequest struct {
-	Message string
+type JSONRPCServer struct {
+	mux      sync.RWMutex
+	messages []Message
 }
 
-type QueryAllResponse struct {
-	Messages []string `json:"messages"`
+func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
+	msg := Message{Time: time.Now(), Content: message}
+	s.mux.Lock()
+	s.messages = append(s.messages, msg)
+	s.mux.Unlock()
+	fmt.Println("Broadcasting:", msg)
+	return nil, nil
 }
 
-var (
-	config     Config
-	configToml IDs
-	node       host.Host
-)
-
-func (s *GossipService) Broadcast(r *http.Request, req *BroadcastRequest, res *struct{}) error {
-	msg := Message{
-		Time:    time.Now(),
-		Content: req.Message,
+func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	var result []string
+	for _, msg := range s.messages {
+		result = append(result, msg.Content)
 	}
-	fmt.Println("Broadcasting message" + req.Message)
-	// Iterate through peers and send the message
-	for _, peer := range config.Peers {
-		nodeAddress, exists := configToml[peer]
-		if !exists {
-			fmt.Printf("Entry for node '%s' not found.\n", peer)
-			continue
+	return result, nil
+}
+
+func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			JSONRPC string        `json:"jsonrpc"`
+			Method  string        `json:"method"`
+			Params  []interface{} `json:"params"`
+			ID      interface{}   `json:"id"`
 		}
 
-		ctx := context.Background()
-		_, err := connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
-		if err != nil {
-			fmt.Println("Error connecting to peer:", err)
-			continue
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid JSON request", http.StatusBadRequest)
+			return
 		}
 
-		timeParts := strings.Split(msg.Time.String(), " ")
-		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+		var result interface{}
+		var rpcErr *jsonrpc.RPCError
 
-		SendMessage(node, nodeAddress, timeStr+"|"+req.Message+"\n", "/chat/1.0.0")
-	}
+		switch req.Method {
+		case "Node.Broadcast":
+			if len(req.Params) > 0 {
+				if message, ok := req.Params[0].(string); ok {
+					result, rpcErr = s.Broadcast(message)
+				} else {
+					rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
+				}
+			}
+		case "Node.QueryAll":
+			result, rpcErr = s.QueryAll()
+		default:
+			rpcErr = &jsonrpc.RPCError{Code: -32601, Message: "Method not found"}
+		}
 
-	return nil
-}
+		response := struct {
+			JSONRPC string            `json:"jsonrpc"`
+			ID      interface{}       `json:"id"`
+			Result  interface{}       `json:"result,omitempty"`
+			Error   *jsonrpc.RPCError `json:"error,omitempty"`
+		}{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  result,
+			Error:   rpcErr,
+		}
 
-func (s *GossipService) QueryAll(r *http.Request, req *struct{}, res *QueryAllResponse) error {
-	// Reading messages from sorted_messages.txt
-	filePath := "./data/sorted_messages.txt"
-	lines, err := readAllLines(filePath)
-	if err != nil {
-		return err
-	}
-
-	// Add messages to the response
-	res.Messages = lines
-
-	// Send messages to config.SendPort
-	address := fmt.Sprintf("localhost:%d", config.SendPort)
-	conn, err := net.Dial("tcp", address)
-	if err != nil {
-		fmt.Println("Error connecting:", err)
-		return err
-	}
-	defer conn.Close()
-
-	for _, message := range lines {
-		_, err = conn.Write([]byte(message + "\n"))
-		if err != nil {
-			fmt.Println("Error sending message:", err)
-			return err
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			fmt.Println("Error encoding response:", err)
 		}
 	}
-
-	return nil
 }
 
-func StartRPCServer() {
-	s := rpc.NewServer()
-	s.RegisterCodec(json.NewCodec(), "application/json")
-	s.RegisterService(new(GossipService), "")
-
-	http.Handle("/rpc", s)
-
-	go func() {
-		err := http.ListenAndServe(fmt.Sprintf(":%d", config.RPCPort), nil)
-		if err != nil {
-			fmt.Println("Error starting server:", err)
-		}
-	}()
-}
-
-func QueryAll(nodeName string, h host.Host, nodeAddress string) {
-	fileMutex.Lock()
-	defer fileMutex.Unlock()
-
-	filePath := "./data/sorted_messages.txt"
-	file, err := os.Open(filePath)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer file.Close()
-	if nodeAddress == "" {
-		fmt.Println("Address not found for node:", nodeName)
-		return
-	}
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		message := scanner.Text()
-		fmt.Println(message)
-		SendMessage(h, nodeAddress, message, "/chat/1.0.0")
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
+func StartJSONRPCServer(port int, server *JSONRPCServer) {
+	http.HandleFunc("/rpc", handleJSONRPC(server))
+	fmt.Printf("Starting JSON-RPC server on all interfaces, port %d\n", port)
+	if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), nil); err != nil {
+		fmt.Println("Error starting JSON-RPC server:", err)
 	}
 }
 
-func saveConfig(config *Config, configPath string) {
-	data, err := toml.Marshal(config)
-	if err != nil {
-		log.Fatalf("Error marshalling config: %s", err)
-	}
-
-	err = os.WriteFile(configPath, data, 0644)
-	if err != nil {
-		log.Fatalf("Error writing config to file: %s", err)
-	}
-}
-
-func connectToPeer(h host.Host, ctx context.Context, hostAddr string, peerAddr string) (*peerstore.AddrInfo, error) {
-	hostMultiAddr, err := ma.NewMultiaddr(hostAddr)
-	if err != nil {
-		return nil, err
-	}
-	peerMultiAddr, err := ma.NewMultiaddr(peerAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	peerID, err := peer.AddrInfoFromP2pAddr(peerMultiAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	peerID.Addrs = append(peerID.Addrs, hostMultiAddr)
-
-	if err := h.Connect(ctx, *peerID); err != nil {
-		return nil, err
-	}
-
-	fmt.Println("Connected to Peer:", peerID.ID)
-	return peerID, nil
-}
-
-func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
-	ctx := context.Background()
-	peerMultiAddr, err := ma.NewMultiaddr(peerAddr)
-	if err != nil {
-		fmt.Println("Error parsing multiaddress:", err)
-		return
-	}
-
-	peerInfo, err := peer.AddrInfoFromP2pAddr(peerMultiAddr)
-	if err != nil {
-		fmt.Println("Error converting to peer info:", err)
-		return
-	}
-
-	stream, err := h.NewStream(ctx, peerInfo.ID, protocol)
-	if err != nil {
-		fmt.Println("Error opening stream to peer:", peerInfo.ID, err)
-		return
-	}
-	defer stream.Close()
-
-	_, err = stream.Write([]byte(message))
-	if err != nil {
-		fmt.Println("Error sending message to peer:", peerInfo.ID, err)
-	}
-}
 func contains(slice []string, str string) bool {
 	for _, v := range slice {
 		if v == str {
@@ -313,6 +219,75 @@ func writeAllLines(filePath string, lines []string) error {
 	return writer.Flush()
 }
 
+func saveConfig(config *Config, configPath string) {
+	data, err := toml.Marshal(config)
+	if err != nil {
+		log.Fatalf("Error marshalling config: %s", err)
+	}
+
+	err = os.WriteFile(configPath, data, 0644)
+	if err != nil {
+		log.Fatalf("Error writing config to file: %s", err)
+	}
+}
+
+func connectToPeer(h host.Host, peerID peer.ID, address string) error {
+	ctx := context.Background()
+	peerAddr, err := ma.NewMultiaddr(address)
+	if err != nil {
+		return fmt.Errorf("error creating multiaddr: %v", err)
+	}
+	peerInfo, err := peer.AddrInfoFromP2pAddr(peerAddr)
+	if err != nil {
+		return fmt.Errorf("error creating peer info: %v", err)
+	}
+
+	if err := h.Connect(ctx, *peerInfo); err != nil {
+		return fmt.Errorf("failed to connect to peer %s: %v", peerInfo.ID, err)
+	}
+	fmt.Printf("Successfully connected to peer %s\n", peerInfo.ID)
+	return nil
+}
+
+func getPeerIDFromPublicKey(pubKeyHex string) (peer.ID, error) {
+	pubKeyBytes, err := hex.DecodeString(strings.TrimPrefix(pubKeyHex, "0x"))
+	if err != nil {
+		return "", fmt.Errorf("error decoding public key: %v", err)
+	}
+	libp2pPubKey, err := crypto.UnmarshalEd25519PublicKey(pubKeyBytes)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshalling public key: %v", err)
+	}
+	return peer.IDFromPublicKey(libp2pPubKey)
+}
+
+func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
+	ctx := context.Background()
+	peerMultiAddr, err := ma.NewMultiaddr(peerAddr)
+	if err != nil {
+		fmt.Println("Error parsing multiaddress:", err)
+		return
+	}
+
+	peerInfo, err := peer.AddrInfoFromP2pAddr(peerMultiAddr)
+	if err != nil {
+		fmt.Println("Error converting to peer info:", err)
+		return
+	}
+
+	stream, err := h.NewStream(ctx, peerInfo.ID, protocol)
+	if err != nil {
+		fmt.Println("Error opening stream to peer:", peerInfo.ID, err)
+		return
+	}
+	defer stream.Close()
+
+	_, err = stream.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Error sending message to peer:", peerInfo.ID, err)
+	}
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Please provide the path to the configuration file as an argument.")
@@ -320,9 +295,12 @@ func main() {
 	}
 	configPath := os.Args[1]
 
+	server := &JSONRPCServer{}
+	go StartJSONRPCServer(7654, server)
+
 	re := regexp.MustCompile(`\d+`)
 	numbers := re.FindString(configPath)
-	Nodename = "node" + numbers
+	nodeName = "node" + numbers
 
 	file, err := os.Open(configPath)
 	if err != nil {
@@ -336,217 +314,129 @@ func main() {
 		return
 	}
 
-	// fmt.Println("Peers:", config.Peers)
-	// fmt.Println("RPC Port:", config.RPCPort)
-	// fmt.Println("Send Port:", config.SendPort)
-
-	node, err = libp2p.New(libp2p.ListenAddrStrings(fmt.Sprintf("/dns4/%s/tcp/8443", Nodename)))
+	// Convert hex string to bytes
+	privateKeyHex := strings.TrimLeft(config.PrivateKey, "0x")
+	privateKeyBytes, err := hex.DecodeString(privateKeyHex)
 	if err != nil {
 		panic(err)
 	}
-	// fmt.Println(node.Addrs())
-	peerInfo := peerstore.AddrInfo{
-		ID:    node.ID(),
-		Addrs: node.Addrs(),
-	}
-	addrs, err := peerstore.AddrInfoToP2pAddrs(&peerInfo)
+
+	// Create Ed25519 private key from seed
+	priv := ed25519.NewKeyFromSeed(privateKeyBytes)
+
+	// Convert private key to libp2p format
+	libp2pPrivKey, err := crypto.UnmarshalEd25519PrivateKey(priv)
 	if err != nil {
-		fmt.Println("Error getting node address:", err)
-		return
+		panic(err)
 	}
-	// fmt.Println("libp2p node address:", addrs[0])
-
-	filePath := "ids.toml"
-	num, err := strconv.Atoi(numbers)
+	// Calculate the peer ID using the private key
+	peerID, err := peer.IDFromPrivateKey(libp2pPrivKey)
 	if err != nil {
-		fmt.Println("Invalid node number:", err)
-		return
+		panic(err)
 	}
-	time.Sleep(time.Duration(num+3) * time.Second)
-	tree, err := toml.LoadFile(filePath)
+	fmt.Println("Node Peer ID:", peerID)
+
+	node, err = libp2p.New(
+		libp2p.Identity(libp2pPrivKey),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/dns4/%s/tcp/8080", nodeName)),
+	)
 	if err != nil {
-		tree, err = toml.TreeFromMap(map[string]interface{}{})
-		if err != nil {
-			fmt.Println("Error initializing TOML tree:", err)
-			return
-		}
+		panic(err)
 	}
+	fmt.Println("Node Addresses:", node.Addrs())
 
-	tree.Set(Nodename, addrs[0].String())
-
-	f, err := os.Create(filePath)
-	if err != nil {
-		fmt.Println("Error opening file for writing:", err)
-		return
-	}
-	defer f.Close()
-	if _, err := tree.WriteTo(f); err != nil {
-		fmt.Println("Error writing TOML data to file:", err)
-		return
-	}
-
-	time.Sleep(5 * time.Second)
-
-	file, err = os.Open("ids.toml")
-	if err != nil {
-		log.Fatal("Error opening file:", err)
-	}
-	defer file.Close()
-
-	if err := toml.NewDecoder(file).Decode(&configToml); err != nil {
-		fmt.Println("Error reading config file:", err)
-		return
-	}
-	// fmt.Println(configToml)
-	fmt.Println("Starting RPC Server")
-	StartRPCServer()
-
-	for _, peer := range config.Peers {
-		nodeAddress, exists := configToml[peer]
-		if !exists {
-			fmt.Printf("Entry for node '%s' not found.\n", peer)
-			continue
-		}
-
-		// fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
-		ctx := context.Background()
-		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
-		if err != nil {
-			fmt.Println("Error connecting to peer:", err)
-		}
-	}
-
-	node.SetStreamHandler("/chat/1.0.0", func(s network.Stream) {
-		reader := bufio.NewReader(s)
-		receivedString, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
-		}
-		fmt.Println("Received string:", receivedString)
-
-		// Parsen des empfangenen Strings
-		if strings.HasPrefix(receivedString, "Hello from node") {
-			// Extrahieren der Zahl x aus der Nachricht
-			x := receivedString[len("Hello from node") : len("Hello from node")+1]
-			file, err = os.Open("ids.toml")
-			if err != nil {
-				log.Fatal("Error opening file:", err)
-			}
-			defer file.Close()
-			if err := toml.NewDecoder(file).Decode(&configToml); err != nil {
-				fmt.Println("Error reading config file:", err)
-				return
-			}
-			// Aufrufen von QuerryAll mit der extrahierten Zahl x
-			ctx := context.Background()
-			_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), configToml["node"+x])
-			fmt.Println(err)
-			QueryAll("node"+x, node, configToml["node"+x])
-		} else {
-			parts := strings.SplitN(receivedString, "|", 2)
-			if len(parts) != 2 {
-				fmt.Println("Ungültiges Eingabeformat:", receivedString)
-				return
-			}
-			content := strings.TrimSpace(parts[1])
-			time, err := time.Parse(time.RFC3339, parts[0])
-			if err != nil {
-				fmt.Println("Fehler beim Parsen der Zeit:", err)
-				return
-			}
-
-			// Erstellen einer Nachricht
-			message := Message{
-				Time:    time,
-				Content: content,
-			}
-
-			// Aktualisieren der Datei
-			err = UpdateFile(message)
-			if err != nil {
-				fmt.Println("Fehler beim Aktualisieren der Datei:", err)
-				return
-			}
-		}
-	})
-
-	node.SetStreamHandler("/application/1.0.0", func(s network.Stream) {
+	node.SetStreamHandler("/peers", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		receivedString = strings.TrimSpace(receivedString)
+		fmt.Println("Received message:" + receivedString)
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
 			return
 		}
 		// fmt.Println("Received string:", receivedString)
-		if receivedString != Nodename && !contains(config.Peers, receivedString) {
+		if receivedString != nodeName && !contains(config.Peers, receivedString) {
 			config.Peers = append(config.Peers, receivedString)
 			// fmt.Println("Updated Peers:", config.Peers)
 		}
 	})
 
-	for _, peer := range config.Peers {
-		nodeAddress, exists := configToml[peer]
-		if !exists {
-			fmt.Printf("Entry for node '%s' not found.\n", peer)
-			continue
-		}
-
-		// fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
-		ctx := context.Background()
-		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
+	node.SetStreamHandler("/chat", func(s network.Stream) {
+		reader := bufio.NewReader(s)
+		receivedString, err := reader.ReadString('\n')
+		fmt.Println("Received message:" + receivedString)
 		if err != nil {
-			fmt.Println("Error connecting to peer:", err)
+			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
 		}
-		for _, peer1 := range config.Peers {
-			SendMessage(node, nodeAddress, peer1+"\n", "/application/1.0.0")
-			SendMessage(node, nodeAddress, Nodename+"\n", "/application/1.0.0")
+		parts := strings.SplitN(receivedString, "|", 2)
+		if len(parts) != 2 {
+			fmt.Println("Ungültiges Eingabeformat:", receivedString)
+			return
 		}
-	}
-	time.Sleep(5 * time.Second)
-
-	for _, peer := range config.Peers {
-		nodeAddress, exists := configToml[peer]
-		if !exists {
-			fmt.Printf("Entry for node '%s' not found.\n", peer)
-			continue
-		}
-
-		// fmt.Printf("Address for %s is %s\n", peer, nodeAddress)
-		ctx := context.Background()
-		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
+		content := strings.TrimSpace(parts[1])
+		time, err := time.Parse(time.RFC3339, parts[0])
 		if err != nil {
-			fmt.Println("Error connecting to peer:", err)
+			fmt.Println("Fehler beim Parsen der Zeit:", err)
+			return
 		}
-		for _, peer1 := range config.Peers {
-			SendMessage(node, nodeAddress, peer1+"\n", "/application/1.0.0")
-			SendMessage(node, nodeAddress, Nodename+"\n", "/application/1.0.0")
-			SendMessage(node, nodeAddress, "Hello from "+Nodename+"\n", "/chat/1.0.0")
-		}
-	}
-	time.Sleep(5 * time.Second)
 
-	message := Message{
-		Time:    time.Now(),
-		Content: "Message from " + Nodename,
-	}
-	UpdateFile(message)
+		// Erstellen einer Nachricht
+		message := Message{
+			Time:    time,
+			Content: content,
+		}
+
+		// Aktualisieren der Datei
+		err = UpdateFile(message)
+		if err != nil {
+			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
+			return
+		}
+	})
+
+	time.Sleep(1 * time.Second)
 	for _, peer := range config.Peers {
-		nodeAddress, exists := configToml[peer]
-		if !exists {
-			fmt.Printf("Entry for node '%s' not found.\n", peer)
+		re := regexp.MustCompile(`\d+`)
+		id, _ := strconv.Atoi(re.FindString(peer))
+		peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+		if err != nil {
+			fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
 			continue
 		}
-		ctx := context.Background()
-		_, err = connectToPeer(node, ctx, node.Addrs()[0].String(), nodeAddress)
-		timeParts := strings.Split(message.Time.String(), " ")
-		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
-		SendMessage(node, nodeAddress, timeStr+"|Message from "+Nodename+"\n", "/chat/1.0.0")
+		//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
+		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+		if err := connectToPeer(node, peerID, address); err != nil {
+			fmt.Printf("Error connecting to peer %s: %v\n", peerID, err)
+		}
+		for _, knownPeer := range config.Peers {
+			if knownPeer != peer {
+				SendMessage(node, address, knownPeer+"\n", "/peers")
+			}
+		}
+		SendMessage(node, address, nodeName+"\n", "/peers")
 	}
+	// time.Sleep(1 * time.Second)
+	// message := Message{
+	// 	Time:    time.Now(),
+	// 	Content: "Message from " + nodeName,
+	// }
+	// UpdateFile(message)
+	// for _, peer := range config.Peers {
+	// 	fmt.Println("Sending message to peer " + peer)
+	// 	re := regexp.MustCompile(`\d+`)
+	// 	id, _ := strconv.Atoi(re.FindString(peer))
+	// 	peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+	// 	address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+	// 	connectToPeer(node, peerID, address)
+	// 	timeParts := strings.Split(message.Time.String(), " ")
+	// 	timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+	// 	SendMessage(node, address, timeStr+"|Message from "+nodeName+"\n", "/chat")
+	// }
+
+	time.Sleep(1 * time.Second)
 
 	saveConfig(&config, configPath)
 
-	time.Sleep(60 * time.Second)
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
 	<-sigCh
