@@ -10,8 +10,10 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,6 +31,10 @@ type Message struct {
 	Time    time.Time
 	Content string
 }
+
+var (
+	fileMutex sync.Mutex
+)
 
 type Config struct {
 	Peers          []string `toml:"peers"`
@@ -53,6 +59,78 @@ func contains(slice []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func UpdateFile(message Message) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
+
+	// Read the current contents of the file
+	filePath := "./data/sorted_messages.txt"
+	lines, err := readAllLines(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Format the new message in the correct format
+	newLine := fmt.Sprintf("%s|%s", message.Time.Format(time.RFC3339), message.Content)
+
+	// Check if the message already exists
+	for _, line := range lines {
+		if line == newLine {
+			fmt.Println("Duplicate message found, skipping:", newLine)
+			return nil
+		}
+	}
+
+	// Append the new message if it's unique
+	lines = append(lines, newLine)
+
+	// Sort the lines based on the timestamp
+	sort.SliceStable(lines, func(i, j int) bool {
+		time1, _ := time.Parse(time.RFC3339, strings.SplitN(lines[i], "|", 2)[0])
+		time2, _ := time.Parse(time.RFC3339, strings.SplitN(lines[j], "|", 2)[0])
+		return time1.Before(time2)
+	})
+
+	// Write the sorted lines back to the file
+	return writeAllLines(filePath, lines)
+}
+
+// readAllLines reads all lines from the file
+func readAllLines(filePath string) ([]string, error) {
+	file, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return lines, nil
+}
+
+func writeAllLines(filePath string, lines []string) error {
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	for _, line := range lines {
+		fmt.Fprintln(writer, line)
+	}
+
+	return writer.Flush()
 }
 
 func saveConfig(config *Config, configPath string) {
@@ -194,6 +272,39 @@ func main() {
 		}
 	})
 
+	node.SetStreamHandler("/chat", func(s network.Stream) {
+		reader := bufio.NewReader(s)
+		receivedString, err := reader.ReadString('\n')
+		fmt.Println("Received message:" + receivedString)
+		if err != nil {
+			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+		}
+		parts := strings.SplitN(receivedString, "|", 2)
+		if len(parts) != 2 {
+			fmt.Println("Ungültiges Eingabeformat:", receivedString)
+			return
+		}
+		content := strings.TrimSpace(parts[1])
+		time, err := time.Parse(time.RFC3339, parts[0])
+		if err != nil {
+			fmt.Println("Fehler beim Parsen der Zeit:", err)
+			return
+		}
+
+		// Erstellen einer Nachricht
+		message := Message{
+			Time:    time,
+			Content: content,
+		}
+
+		// Aktualisieren der Datei
+		err = UpdateFile(message)
+		if err != nil {
+			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
+			return
+		}
+	})
+
 	time.Sleep(1 * time.Second)
 	for _, peer := range config.Peers {
 		re := regexp.MustCompile(`\d+`)
@@ -215,7 +326,25 @@ func main() {
 		}
 		SendMessage(node, address, nodeName+"\n", "/peers")
 	}
+
+	message := Message{
+		Time:    time.Now(),
+		Content: "Message from " + nodeName,
+	}
+	UpdateFile(message)
+	for _, peer := range config.Peers {
+		re := regexp.MustCompile(`\d+`)
+		id, _ := strconv.Atoi(re.FindString(peer))
+		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+		connectToPeer(node, peerID, address)
+		timeParts := strings.Split(message.Time.String(), " ")
+		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+		SendMessage(node, address, timeStr+"|Message from "+nodeName+"\n", "/chat")
+	}
+
 	time.Sleep(1 * time.Second)
+
 	saveConfig(&config, configPath)
 
 	sigCh := make(chan os.Signal)
