@@ -326,13 +326,14 @@ func main() {
 		}
 		SendMessage(node, address, nodeName+"\n", "/peers")
 	}
-
+	time.Sleep(1 * time.Second)
 	message := Message{
 		Time:    time.Now(),
 		Content: "Message from " + nodeName,
 	}
 	UpdateFile(message)
 	for _, peer := range config.Peers {
+		fmt.Println("Sending message to peer " + peer)
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
