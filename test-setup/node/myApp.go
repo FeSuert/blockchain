@@ -403,7 +403,7 @@ func main() {
 
 			// Check if the message already exists
 			for _, line := range lines {
-				SendMessage(node, address, line, "/chat")
+				SendMessage(node, address, line+"\n", "/chat")
 			}
 		}
 	})
