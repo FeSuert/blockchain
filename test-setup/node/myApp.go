@@ -78,7 +78,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 		connectToPeer(node, peerID, address)
 		timeParts := strings.Split(time.String(), " ")
 		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
-		SendMessage(node, address, timeStr+"|"+message+"\n", "/chat")
+		SendMessage(node, address, timeStr+"|"+message, "/chat")
 	}
 	return nil, nil
 }
@@ -441,6 +441,28 @@ func main() {
 			return
 		}
 	})
+
+	time.Sleep(1 * time.Second)
+	for _, peer := range config.Peers {
+		re := regexp.MustCompile(`\d+`)
+		id, _ := strconv.Atoi(re.FindString(peer))
+		peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+		if err != nil {
+			fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
+			continue
+		}
+		//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
+		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+		if err := connectToPeer(node, peerID, address); err != nil {
+			fmt.Printf("Error connecting to peer %s: %v\n", peerID, err)
+		}
+		for _, knownPeer := range config.Peers {
+			if knownPeer != peer {
+				SendMessage(node, address, knownPeer+"\n", "/peers")
+			}
+		}
+		SendMessage(node, address, nodeName+"\n", "/peers")
+	}
 
 	time.Sleep(1 * time.Second)
 	for _, peer := range config.Peers {
