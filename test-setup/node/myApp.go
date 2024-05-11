@@ -41,6 +41,7 @@ type Config struct {
 	Miners         []string `toml:"miners"`
 	PrivateKey     string   `toml:"private_key"`
 	MinedBlockSize int64    `toml:"mined_block_size"`
+	LeaderProbability float64 `toml:"leader_probability"`
 }
 
 var nodeName string
@@ -59,6 +60,15 @@ type JSONRPCServer struct {
 	mux      sync.RWMutex
 	messages []Message
 }
+
+type Block struct{
+	id string 
+	prev_id string
+	leader_value int
+	messages []string
+	
+}
+var blockchain []Block
 
 // Broadcast sends a message to all connected nodes.
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
@@ -79,7 +89,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 	fmt.Println("Broadcasting:", msg)
 
 	// Update the file with the new message
-	UpdateFile(msg)
+	SaveTransaction(msg)
 
 	// Iterate through all connected peers and send the message to each one
 	for _, peer := range config.Peers {
@@ -98,13 +108,13 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 		// Create the timestamp string in the correct format
 		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
 		// Send the message to the peer using the peer address and the timestamp string
-		SendMessage(node, address, timeStr+"|"+message+"\n", "/chat")
+		SendMessage(node, address, timeStr+"|"+message+"\n", "/transactions")
 	}
 
 	// Return nil to indicate that the method executed successfully
 	return nil, nil
 }
-
+// TODO: Update query all
 func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
@@ -202,11 +212,57 @@ func contains(slice []string, str string) bool {
 	}
 	return false
 }
+func SaveBlock(block Block) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
 
-// UpdateFile updates the file with a new message and sends it to all peers.
+	// Read the current contents of the file
+	filePath := "./data/blockchain.txt"
+	lines, err := readAllLines(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Format the new message in the correct format
+	newLine := fmt.Sprintf("%s|%s|%s|%s", block.id, block.prev_id, block.leader_value, strings.Join(block.messages, ", "))
+
+	// Check if the block already exists
+	for _, line := range lines {
+		if line == newLine {
+			fmt.Println("Duplicate block found, skipping:", newLine)
+			return nil
+		}
+	}
+
+	// Send the new block to all peers
+	for _, peer := range config.Peers {
+		fmt.Println("Sending block to peer " + peer)
+		re := regexp.MustCompile(`\d+`)
+		id, _ := strconv.Atoi(re.FindString(peer))
+		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+		connectToPeer(node, peerID, address)
+		SendMessage(node, address, newLine+"\n", "/blockchain")
+	}
+
+	// Append the new message if it's unique
+	lines = append(lines, newLine)
+
+	// Sort the lines based on id
+	sort.SliceStable(lines, func(i, j int) bool {
+		id1, _ := (strings.SplitN(lines[i], "|", 4)[0])
+		id2, _ := (strings.SplitN(lines[j], "|", 4)[0])
+		return id1.Before(id2)
+	})
+
+	// Write the sorted lines back to the file
+	return writeAllLines(filePath, lines)
+}
+
+// SaveTransaction updates the file with a new message and sends it to all peers.
 // It checks if the message already exists in the file before appending it.
 // If the message is unique, it sorts the lines based on the timestamp and writes them back to the file.
-func UpdateFile(message Message) error {
+func SaveTransaction(message Message) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -236,7 +292,7 @@ func UpdateFile(message Message) error {
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 		connectToPeer(node, peerID, address)
-		SendMessage(node, address, newLine+"\n", "/chat")
+		SendMessage(node, address, newLine+"\n", "/transactions")
 	}
 
 	// Append the new message if it's unique
@@ -445,13 +501,12 @@ func main() {
 
 			// Check if the message already exists
 			for _, line := range lines {
-				SendMessage(node, address, line+"\n", "/chat")
+				SendMessage(node, address, line+"\n", "/transactions")
 			}
 		}
 	})
-
-	// Open incoming chatstream
-	node.SetStreamHandler("/chat", func(s network.Stream) {
+	// Open incoming transactions
+	node.SetStreamHandler("/transactions", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		fmt.Println("Received message:" + receivedString)
@@ -478,7 +533,42 @@ func main() {
 		}
 
 		// Update file
-		err = UpdateFile(message)
+		err = SaveTransaction(message)
+		if err != nil {
+			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
+			return
+		}
+	})
+
+	// Open incoming transactions
+	node.SetStreamHandler("/blockchain", func(s network.Stream) {
+		reader := bufio.NewReader(s)
+		receivedString, err := reader.ReadString('\n')
+		fmt.Println("Received message:" + receivedString)
+		if err != nil {
+			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+		}
+
+		parts := strings.SplitN(receivedString, "|", 4)
+		if len(parts) != 4 {
+			fmt.Println("Ungültiges Eingabeformat:", receivedString)
+			return
+		}
+		currentID := strings.TrimSpace(parts[0])
+		previouseID := strings.TrimSpace(parts[1])
+		leaderValue, _ := strconv.Atoi(strings.TrimSpace(parts[2]))
+		transactions := strings.Split(strings.TrimSpace(parts[3]), ",")
+		
+		// Generate new message
+		receivedBlock := Block{
+			id : currentID,
+			prev_id : previouseID,
+            leader_value : leaderValue,
+            messages : transactions,
+		}
+
+		// Update file
+		err = SaveBlock(receivedBlock)
 		if err != nil {
 			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
 			return
@@ -546,7 +636,7 @@ func main() {
 	// 	Time:    time.Now(),
 	// 	Content: "Message from " + nodeName,
 	// }
-	// UpdateFile(message)
+	// SaveTransaction(message)
 	// for _, peer := range config.Peers {
 	// 	fmt.Println("Sending message to peer " + peer)
 	// 	re := regexp.MustCompile(`\d+`)
@@ -556,7 +646,7 @@ func main() {
 	// 	connectToPeer(node, peerID, address)
 	// 	timeParts := strings.Split(message.Time.String(), " ")
 	// 	timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
-	// 	SendMessage(node, address, timeStr+"|Message from "+nodeName+"\n", "/chat")
+	// 	SendMessage(node, address, timeStr+"|Message from "+nodeName+"\n", "/transactions")
 	// }
 
 	time.Sleep(1 * time.Second)
