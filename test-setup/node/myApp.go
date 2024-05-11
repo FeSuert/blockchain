@@ -60,26 +60,48 @@ type JSONRPCServer struct {
 	messages []Message
 }
 
+// Broadcast sends a message to all connected nodes.
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
+	// Get the current time
 	time := time.Now()
+
+	// Create a new message struct with the current time and the given message
 	msg := Message{Time: time, Content: message}
+
+	// Lock the mutex to ensure thread safety
 	s.mux.Lock()
+	// Append the new message to the slice of messages
 	s.messages = append(s.messages, msg)
+	// Unlock the mutex
 	s.mux.Unlock()
+
+	// Print the broadcast message to the console
 	fmt.Println("Broadcasting:", msg)
 
+	// Update the file with the new message
 	UpdateFile(msg)
+
+	// Iterate through all connected peers and send the message to each one
 	for _, peer := range config.Peers {
-		fmt.Println("Sending message to peer " + peer)
+		fmt.Println("Sending message to peer", peer)
+		// Extract the node ID from the peer string
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
+		// Get the peer's public key from the node list
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		// Create the peer address from the peer string and the peer ID
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+		// Connect to the peer if not already connected
 		connectToPeer(node, peerID, address)
+		// Get the time parts from the current time string
 		timeParts := strings.Split(time.String(), " ")
+		// Create the timestamp string in the correct format
 		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
+		// Send the message to the peer using the peer address and the timestamp string
 		SendMessage(node, address, timeStr+"|"+message+"\n", "/chat")
 	}
+
+	// Return nil to indicate that the method executed successfully
 	return nil, nil
 }
 
@@ -100,6 +122,8 @@ func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	return result, nil
 }
 
+// handleJSONRPC is a HTTP handler function that processes JSON-RPC requests.
+// It supports two methods: "Node.Broadcast" and "Node.QueryAll".
 func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -109,6 +133,7 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 			ID      interface{}   `json:"id"`
 		}
 
+		// Decode the JSON-RPC request from the request body.
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid JSON request", http.StatusBadRequest)
 			return
@@ -117,21 +142,29 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 		var result interface{}
 		var rpcErr *jsonrpc.RPCError
 
+		// Process the JSON-RPC request based on the method.
 		switch req.Method {
 		case "Node.Broadcast":
+			// Check if the request contains at least one parameter.
 			if len(req.Params) > 0 {
+				// Extract the message from the first parameter.
 				if message, ok := req.Params[0].(string); ok {
+					// Call the Broadcast method of the JSONRPCServer struct.
 					result, rpcErr = s.Broadcast(message)
 				} else {
+					// Return an error if the first parameter is not a string.
 					rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
 				}
 			}
 		case "Node.QueryAll":
+			// Call the QueryAll method of the JSONRPCServer struct.
 			result, rpcErr = s.QueryAll()
 		default:
+			// Return an error if the method is not supported.
 			rpcErr = &jsonrpc.RPCError{Code: -32601, Message: "Method not found"}
 		}
 
+		// Prepare the JSON-RPC response.
 		response := struct {
 			JSONRPC string            `json:"jsonrpc"`
 			ID      interface{}       `json:"id"`
@@ -144,7 +177,9 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 			Error:   rpcErr,
 		}
 
+		// Set the Content-Type header of the response to application/json.
 		w.Header().Set("Content-Type", "application/json")
+		// Encode the JSON-RPC response and write it to the response body.
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			fmt.Println("Error encoding response:", err)
 		}
@@ -168,6 +203,9 @@ func contains(slice []string, str string) bool {
 	return false
 }
 
+// UpdateFile updates the file with a new message and sends it to all peers.
+// It checks if the message already exists in the file before appending it.
+// If the message is unique, it sorts the lines based on the timestamp and writes them back to the file.
 func UpdateFile(message Message) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
@@ -190,6 +228,7 @@ func UpdateFile(message Message) error {
 		}
 	}
 
+	// Send the new message to all peers
 	for _, peer := range config.Peers {
 		fmt.Println("Sending message to peer " + peer)
 		re := regexp.MustCompile(`\d+`)
@@ -197,7 +236,7 @@ func UpdateFile(message Message) error {
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 		connectToPeer(node, peerID, address)
-		SendMessage(node, address, newLine, "/chat")
+		SendMessage(node, address, newLine+"\n", "/chat")
 	}
 
 	// Append the new message if it's unique
@@ -366,7 +405,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("Node Peer ID:", peerID)
-
+	// Generate new node
 	node, err = libp2p.New(
 		libp2p.Identity(libp2pPrivKey),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/dns4/%s/tcp/8080", nodeName)),
@@ -376,20 +415,23 @@ func main() {
 	}
 	fmt.Println("Node Addresses:", node.Addrs())
 
+	// Open incoming peerstream
 	node.SetStreamHandler("/peers", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		receivedString = strings.TrimSpace(receivedString)
 		fmt.Println("Received message:" + receivedString)
+
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
 			return
 		}
-		// fmt.Println("Received string:", receivedString)
+
 		if receivedString != nodeName && !contains(config.Peers, receivedString) {
 			config.Peers = append(config.Peers, receivedString)
-			// fmt.Println("Updated Peers:", config.Peers)
+
 		}
+
 		for _, peer := range config.Peers {
 			fmt.Println("Sending message to peer " + peer)
 			re := regexp.MustCompile(`\d+`)
@@ -403,11 +445,12 @@ func main() {
 
 			// Check if the message already exists
 			for _, line := range lines {
-				SendMessage(node, address, line, "/chat")
+				SendMessage(node, address, line+"\n", "/chat")
 			}
 		}
 	})
 
+	// Open incoming chatstream
 	node.SetStreamHandler("/chat", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
@@ -428,13 +471,13 @@ func main() {
 			return
 		}
 
-		// Erstellen einer Nachricht
+		// Generate new message
 		message := Message{
 			Time:    time,
 			Content: content,
 		}
 
-		// Aktualisieren der Datei
+		// Update file
 		err = UpdateFile(message)
 		if err != nil {
 			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
@@ -443,20 +486,55 @@ func main() {
 	})
 
 	time.Sleep(1 * time.Second)
+
 	for _, peer := range config.Peers {
+
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
 		peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+
 		if err != nil {
 			fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
 			continue
 		}
 		//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+
 		if err := connectToPeer(node, peerID, address); err != nil {
 			fmt.Printf("Error connecting to peer %s: %v\n", peerID, err)
 		}
+
 		for _, knownPeer := range config.Peers {
+
+			if knownPeer != peer {
+				SendMessage(node, address, knownPeer+"\n", "/peers")
+			}
+		}
+		SendMessage(node, address, nodeName+"\n", "/peers")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	for _, peer := range config.Peers {
+
+		re := regexp.MustCompile(`\d+`)
+		id, _ := strconv.Atoi(re.FindString(peer))
+		peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+
+		if err != nil {
+			fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
+			continue
+		}
+
+		//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
+		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+
+		if err := connectToPeer(node, peerID, address); err != nil {
+			fmt.Printf("Error connecting to peer %s: %v\n", peerID, err)
+		}
+
+		for _, knownPeer := range config.Peers {
+
 			if knownPeer != peer {
 				SendMessage(node, address, knownPeer+"\n", "/peers")
 			}
