@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# Tests if all nodes receive all messages.
+# Tests if all nodes would be able to process all messages *in the same order*.
 import json
-import random
 import requests
+import random
 import sys
 import time
 import logging
@@ -15,56 +15,38 @@ rpc_port = 7654
 def rpc(url, method, arg):
     headers = {'content-type': 'application/json'}
     payload = {
-        "method": method,
-        "params": arg,
-        "jsonrpc": "2.0",
-        "id": 0,
+        'method': method,
+        'params': arg,
+        'jsonrpc': '2.0',
+        'id': 0,
     }
-    print(url)
-    print(json.dumps(payload))
-    print(headers)
-    response = requests.post(url, data=json.dumps(payload), headers=headers)
-    print("Response Text:", response.text)
-    return response.json()  # Ensure response is valid JSON
+    return requests.post(url, data=json.dumps(payload), headers=headers).json()
 
 
-
-def send_messages1():
-    for _ in range(15):
-        url = f"http://node{random.choice(range(1, n+1))}:{rpc_port}/rpc"
-        rpc(url, "Node.Broadcast", [f"user {random.choice(range(1, 15))} says hello"])
-
-
-def send_messages2():
-    for _ in range(15):
-        not3 = list(set(range(1, n+1))-{3})
-        url = f"http://node{random.choice(not3)}:{rpc_port}/rpc"
-        rpc(url, "Node.Broadcast", [f"user {random.choice(range(1, 15))} says hello"])
+def send_messages():
+    people = [ 'Alice', 'Bob', 'Charlie', 'David' ]
+    for _ in range(20):
+        url = f'http://node{random.choice(range(1, n+1))}:{rpc_port}'
+        payer = random.choice(people)
+        message = f'[nonce: {random.randint(0, 1000000)}] {payer} wants to pay {random.choice(list(set(people)-{payer}))}'
+        # The pseudorandom nonce should make messages unique.
+        # For simplicity, the nonce has no meaning here (unlike, eg, mainnet Ethereum).
+        rpc(url, 'Node.Broadcast', [message])
 
 
 def check_outputs():
     for i in range(1, n+1):
-        if i == 3:
-            continue
-        url = f"http://node{i}:{rpc_port}/rpc"
-        output = rpc(url, "Node.QueryAll", [])['result']
-        logging.info('\n'.join(
-            [f'node{i}:']+[f'    {message}' for message in output]
-        ))
+        url = f'http://node{i}:{rpc_port}'
+        output = rpc(url, 'Node.QueryAll', [])['result']
+        logging.info('\n'.join([f'node{i}']+[f'    {block}' for block in output]))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     time.sleep(5)
-
-    if sys.argv[1] == "phase1":
-        send_messages1()
-        while True:
-            time.sleep(5)
-
-    elif sys.argv[1] == "phase2":
-        send_messages2()
-        while True:
-            time.sleep(5)
-
-    elif sys.argv[1] == "phase3":
+    send_messages()
+    time.sleep(10)
+    if sys.argv[1] == 'tester1':
         check_outputs()
+    else:
+        # make sure tester1 exits first
+        time.sleep(60)
