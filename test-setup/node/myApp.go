@@ -851,7 +851,10 @@ func main() {
 			newBlock.leader_value = state.ownLeaderValue
 			var filePath = "sorted_messages.txt"
 			lines, _ := readAllLines(filePath)
-			for i := 0; i < config.MinedBlockSize; i++ {
+			if len(lines) == 0 {
+				continue
+			}
+			for i := 0; i < config.MinedBlockSize && i < len(lines); i++ {
 				newBlock.messages = append(newBlock.messages, lines[i])
 			}
 			state.currentBlockID, _ = SaveBlock(newBlock)
@@ -865,12 +868,12 @@ func main() {
 				SendMessage(node, address, lines[len(lines)-1], "/blockchain")
 			}
 		}
-	}
-	sigCh := make(chan os.Signal)
-	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
-	<-sigCh
+		sigCh := make(chan os.Signal)
+		signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
+		<-sigCh
 
-	if err := node.Close(); err != nil {
-		panic(err)
+		if err := node.Close(); err != nil {
+			panic(err)
+		}
 	}
 }
