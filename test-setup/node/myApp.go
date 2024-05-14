@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cbergoon/merkletree"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -35,16 +37,29 @@ var (
 )
 
 type Config struct {
-	Peers          []string `toml:"peers"`
-	RPCPort        int64    `toml:"rpc_port"`
-	SendPort       int64    `toml:"send_port"`
-	Miners         []string `toml:"miners"`
-	PrivateKey     string   `toml:"private_key"`
-	MinedBlockSize int64    `toml:"mined_block_size"`
-	LeaderProbability float64 `toml:"leader_probability"`
+	Peers             []string `toml:"peers"`
+	RPCPort           int64    `toml:"rpc_port"`
+	SendPort          int64    `toml:"send_port"`
+	Miners            []string `toml:"miners"`
+	PrivateKey        string   `toml:"private_key"`
+	MinedBlockSize    int      `toml:"mined_block_size"`
+	LeaderProbability float64  `toml:"leader_probability"`
 }
 
 var nodeName string
+
+type Content struct {
+	x string
+}
+
+type ConsensusState struct {
+	currentBlockID         int
+	receivedMinLeaderValue int
+	ownLeaderValue         int
+}
+
+// Initialize the state
+var state ConsensusState
 
 var (
 	config Config
@@ -61,14 +76,61 @@ type JSONRPCServer struct {
 	messages []Message
 }
 
-type Block struct{
-	id string 
-	prev_id string
+type Block struct {
+	id           int
+	prev_id      int
 	leader_value int
-	messages []string
-	
+	messages     []string
 }
+
 var blockchain []Block
+
+func (t Content) CalculateHash() ([]byte, error) {
+	h := sha256.New()
+	if _, err := h.Write([]byte(t.x)); err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
+}
+
+func (t Content) Equals(other merkletree.Content) (bool, error) {
+	return t.x == other.(Content).x, nil
+}
+
+func MerkleRootHash(data []string) ([]byte, error) {
+	// Convert the slice of strings to a slice of Content
+	var list []merkletree.Content
+	for _, d := range data {
+		list = append(list, Content{x: d})
+	}
+
+	// Create a new Merkle Tree from the list of Content
+	tree, err := merkletree.NewTree(list)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the Merkle Root
+	root := tree.MerkleRoot()
+	return root, nil
+}
+func CalculateLeaderValue(root []byte) int {
+	// Hash the root with the nodeName
+	h := sha256.New()
+	h.Write(root)
+	h.Write([]byte(nodeName))
+	hashedRoot := h.Sum(nil)
+
+	// Calculate the sum of the hashed bytes
+	var sum int
+	for _, b := range hashedRoot {
+		sum += int(b)
+	}
+
+	// Calculate the leader value
+	leaderValue := int(float64(sum) * (1 - config.LeaderProbability))
+	return leaderValue
+}
 
 // Broadcast sends a message to all connected nodes.
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
@@ -114,6 +176,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 	// Return nil to indicate that the method executed successfully
 	return nil, nil
 }
+
 // TODO: Update query all
 func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	s.mux.RLock()
@@ -212,7 +275,8 @@ func contains(slice []string, str string) bool {
 	}
 	return false
 }
-func SaveBlock(block Block) error {
+
+func SaveBlock(block Block) (int, error) {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -220,18 +284,40 @@ func SaveBlock(block Block) error {
 	filePath := "./data/blockchain.txt"
 	lines, err := readAllLines(filePath)
 	if err != nil {
-		return err
+		return state.currentBlockID, err
 	}
 
 	// Format the new message in the correct format
-	newLine := fmt.Sprintf("%s|%s|%s|%s", block.id, block.prev_id, block.leader_value, strings.Join(block.messages, ", "))
+	newLine := fmt.Sprintf("%d|%d|%d|%s", block.id, block.prev_id, block.leader_value, strings.Join(block.messages, ", "))
 
-	// Check if the block already exists
+	var newLines []string
+	blockExists := false
+
 	for _, line := range lines {
-		if line == newLine {
-			fmt.Println("Duplicate block found, skipping:", newLine)
-			return nil
+		parts := strings.SplitN(line, "|", 4)
+		if len(parts) < 4 {
+			continue
 		}
+
+		existingID, _ := strconv.Atoi(parts[0])
+		existingLeaderValue, _ := strconv.Atoi(parts[2])
+
+		if block.id == existingID {
+			blockExists = true
+			if block.leader_value > existingLeaderValue || block.leader_value == existingLeaderValue {
+				// New block has higher leader_value
+				return state.currentBlockID, nil
+			} else {
+				// New block has lower leader_value, remove all further blocks with higher IDs
+				break
+			}
+		}
+		newLines = append(newLines, line)
+	}
+
+	// Append the new message if it's unique or replaced an existing one
+	if !blockExists {
+		newLines = append(newLines, newLine)
 	}
 
 	// Send the new block to all peers
@@ -245,18 +331,27 @@ func SaveBlock(block Block) error {
 		SendMessage(node, address, newLine+"\n", "/blockchain")
 	}
 
-	// Append the new message if it's unique
-	lines = append(lines, newLine)
-
 	// Sort the lines based on id
-	sort.SliceStable(lines, func(i, j int) bool {
-		id1, _ := (strings.SplitN(lines[i], "|", 4)[0])
-		id2, _ := (strings.SplitN(lines[j], "|", 4)[0])
-		return id1.Before(id2)
+	sort.SliceStable(newLines, func(i, j int) bool {
+		id1, _ := strconv.Atoi(strings.SplitN(newLines[i], "|", 4)[0])
+		id2, _ := strconv.Atoi(strings.SplitN(newLines[j], "|", 4)[0])
+		return id1 < id2
 	})
 
 	// Write the sorted lines back to the file
-	return writeAllLines(filePath, lines)
+	err = writeAllLines(filePath, newLines)
+
+	for _, msg := range block.messages {
+		targetLine := msg // assuming msg includes the timestamp
+		err := removeTransaction(targetLine)
+		if err != nil {
+			return state.currentBlockID, err
+		}
+	}
+
+	// Return the last ID in the saved file
+	lastID, _ := strconv.Atoi(strings.SplitN(newLines[len(newLines)-1], "|", 4)[0])
+	return lastID, err
 }
 
 // SaveTransaction updates the file with a new message and sends it to all peers.
@@ -307,6 +402,35 @@ func SaveTransaction(message Message) error {
 
 	// Write the sorted lines back to the file
 	return writeAllLines(filePath, lines)
+}
+
+func removeTransaction(targetLine string) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
+
+	// Read the current contents of the file
+	filePath := "./data/sorted_messages.txt"
+	lines, err := readAllLines(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Find and remove the target message
+	var newLines []string
+	for _, line := range lines {
+		if line != targetLine {
+			newLines = append(newLines, line)
+		}
+	}
+
+	// If the message was not found, return an error
+	if len(newLines) == len(lines) {
+		fmt.Println("Message not found, nothing to remove:", targetLine)
+		return nil
+	}
+
+	// Write the updated lines back to the file
+	return writeAllLines(filePath, newLines)
 }
 
 // readAllLines reads all lines from the file
@@ -496,12 +620,12 @@ func main() {
 			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 			connectToPeer(node, peerID, address)
 
-			filePath := "./data/sorted_messages.txt"
+			filePath := "./data/blockchain.txt"
 			lines, _ := readAllLines(filePath)
 
 			// Check if the message already exists
 			for _, line := range lines {
-				SendMessage(node, address, line+"\n", "/transactions")
+				SendMessage(node, address, line+"\n", "/blockchain")
 			}
 		}
 	})
@@ -540,6 +664,55 @@ func main() {
 		}
 	})
 
+	node.SetStreamHandler("/consensus", func(s network.Stream) {
+		reader := bufio.NewReader(s)
+		receivedString, err := reader.ReadString('\n')
+		fmt.Println("Received message:" + receivedString)
+		if err != nil {
+			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+		}
+
+		parts := strings.SplitN(receivedString, "|", 2)
+		if len(parts) != 2 {
+			fmt.Println("Ungültiges Eingabeformat:", receivedString)
+			return
+		}
+		currentBlockID, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
+		if currentBlockID < state.currentBlockID {
+			fmt.Println("Old ID received:", currentBlockID)
+			return
+		}
+		if currentBlockID > state.currentBlockID {
+			fmt.Println("Newer ID received:", currentBlockID)
+			for _, peer := range config.Peers {
+
+				re := regexp.MustCompile(`\d+`)
+				id, _ := strconv.Atoi(re.FindString(peer))
+				peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+
+				if err != nil {
+					fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
+					continue
+				}
+				//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
+				address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+				SendMessage(node, address, nodeName+"\n", "/peers")
+			}
+			return
+		}
+
+		leaderValue, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			fmt.Println("Fehler beim konvertieren des String:", err)
+			return
+		}
+
+		// Update state
+		state.currentBlockID = currentBlockID
+		if state.receivedMinLeaderValue > leaderValue {
+			state.receivedMinLeaderValue = leaderValue
+		}
+	})
 	// Open incoming transactions
 	node.SetStreamHandler("/blockchain", func(s network.Stream) {
 		reader := bufio.NewReader(s)
@@ -554,21 +727,29 @@ func main() {
 			fmt.Println("Ungültiges Eingabeformat:", receivedString)
 			return
 		}
-		currentID := strings.TrimSpace(parts[0])
-		previouseID := strings.TrimSpace(parts[1])
+		currentID, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
+		previouseID, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
 		leaderValue, _ := strconv.Atoi(strings.TrimSpace(parts[2]))
 		transactions := strings.Split(strings.TrimSpace(parts[3]), ",")
-		
+
 		// Generate new message
 		receivedBlock := Block{
-			id : currentID,
-			prev_id : previouseID,
-            leader_value : leaderValue,
-            messages : transactions,
+			id:           currentID,
+			prev_id:      previouseID,
+			leader_value: leaderValue,
+			messages:     transactions,
 		}
 
 		// Update file
-		err = SaveBlock(receivedBlock)
+		state.currentBlockID, err = SaveBlock(receivedBlock)
+		var filePath = "sorted_messages.txt"
+		var BlockTransactions []string
+		lines, _ := readAllLines(filePath)
+		for i := 0; i < config.MinedBlockSize; i++ {
+			BlockTransactions = append(BlockTransactions, lines[i])
+		}
+		var root, _ = MerkleRootHash(BlockTransactions)
+		state.ownLeaderValue = CalculateLeaderValue(root)
 		if err != nil {
 			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
 			return
@@ -652,7 +833,39 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	saveConfig(&config, configPath)
+	for {
+		var startConsensus = time.Now()
+		fmt.Println("Start Consensus:", startConsensus)
 
+		// Berechnung des Endzeitpunkts des Konsensusprozesses zur nächsten vollen Minute
+		currentTime := time.Now()
+		nextMinute := currentTime.Truncate(time.Minute).Add(time.Minute)
+		var endConsensus = nextMinute
+		fmt.Println("End Consensus:", endConsensus)
+		time.Sleep(endConsensus.Sub(time.Now()))
+
+		if state.receivedMinLeaderValue > state.ownLeaderValue {
+			var newBlock Block
+			newBlock.id = state.currentBlockID + 1
+			newBlock.prev_id = state.currentBlockID
+			newBlock.leader_value = state.ownLeaderValue
+			var filePath = "sorted_messages.txt"
+			lines, _ := readAllLines(filePath)
+			for i := 0; i < config.MinedBlockSize; i++ {
+				newBlock.messages = append(newBlock.messages, lines[i])
+			}
+			state.currentBlockID, _ = SaveBlock(newBlock)
+			lines, _ = readAllLines("blockchain.txt")
+			for _, peer := range config.Peers {
+				fmt.Println("Sending message to peer " + peer)
+				re := regexp.MustCompile(`\d+`)
+				id, _ := strconv.Atoi(re.FindString(peer))
+				peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+				address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+				SendMessage(node, address, lines[len(lines)-1], "/blockchain")
+			}
+		}
+	}
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
 	<-sigCh
