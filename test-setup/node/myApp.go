@@ -155,7 +155,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 
 	// Iterate through all connected peers and send the message to each one
 	for _, peer := range config.Peers {
-		fmt.Println("Sending message to peer", peer)
+		//fmt.Println("Sending message to peer", peer)
 		// Extract the node ID from the peer string
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
@@ -322,7 +322,7 @@ func SaveBlock(block Block) (int, error) {
 
 	// Send the new block to all peers
 	for _, peer := range config.Peers {
-		fmt.Println("Sending block to peer " + peer)
+		//fmt.Println("Sending block to peer " + peer)
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
@@ -374,14 +374,14 @@ func SaveTransaction(message Message) error {
 	// Check if the message already exists
 	for _, line := range lines {
 		if line == newLine {
-			fmt.Println("Duplicate message found, skipping:", newLine)
+			//fmt.Println("Duplicate message found, skipping:", newLine)
 			return nil
 		}
 	}
 
 	// Send the new message to all peers
 	for _, peer := range config.Peers {
-		fmt.Println("Sending message to peer " + peer)
+		//fmt.Println("Sending message to peer " + peer)
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
@@ -495,7 +495,7 @@ func connectToPeer(h host.Host, peerID peer.ID, address string) error {
 	if err := h.Connect(ctx, *peerInfo); err != nil {
 		return fmt.Errorf("failed to connect to peer %s: %v", peerInfo.ID, err)
 	}
-	fmt.Printf("Successfully connected to peer %s\n", peerInfo.ID)
+	//fmt.Printf("Successfully connected to peer %s\n", peerInfo.ID)
 	return nil
 }
 
@@ -613,7 +613,7 @@ func main() {
 		}
 
 		for _, peer := range config.Peers {
-			fmt.Println("Sending message to peer " + peer)
+			//fmt.Println("Sending message to peer " + peer)
 			re := regexp.MustCompile(`\d+`)
 			id, _ := strconv.Atoi(re.FindString(peer))
 			peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
@@ -742,7 +742,7 @@ func main() {
 
 		// Update file
 		state.currentBlockID, err = SaveBlock(receivedBlock)
-		var filePath = "sorted_messages.txt"
+		var filePath = "./data/sorted_messages.txt"
 		var BlockTransactions []string
 		lines, _ := readAllLines(filePath)
 		for i := 0; i < config.MinedBlockSize; i++ {
@@ -833,34 +833,57 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	saveConfig(&config, configPath)
+	var startConsensus = time.Now()
+	fmt.Println("Start Consensus:", startConsensus)
 	for {
-		var startConsensus = time.Now()
-		fmt.Println("Start Consensus:", startConsensus)
-
+		var filePath = "./data/sorted_messages.txt"
+		var BlockTransactions []string
+		lines, _ := readAllLines(filePath)
+		fmt.Println(len(lines), lines)
+		if len(lines) < 2 {
+			continue
+		}
+		fmt.Println("Appending transactions")
+		for i := 0; i < config.MinedBlockSize; i++ {
+			BlockTransactions = append(BlockTransactions, lines[i])
+		}
+		var root, _ = MerkleRootHash(BlockTransactions)
+		state.ownLeaderValue = CalculateLeaderValue(root)
+		state.receivedMinLeaderValue = state.ownLeaderValue
+		fmt.Println("Sending Leadervalue")
+		for _, peer := range config.Peers {
+			//fmt.Println("Sending message to peer " + peer)
+			re := regexp.MustCompile(`\d+`)
+			id, _ := strconv.Atoi(re.FindString(peer))
+			peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+			SendMessage(node, address, strconv.Itoa(state.ownLeaderValue), "/consensus")
+		}
 		// Berechnung des Endzeitpunkts des Konsensusprozesses zur nächsten vollen Minute
-		currentTime := time.Now()
-		nextMinute := currentTime.Truncate(time.Minute).Add(time.Minute)
+		nextMinute := startConsensus.Truncate(time.Minute).Add(time.Minute)
 		var endConsensus = nextMinute
 		fmt.Println("End Consensus:", endConsensus)
-		time.Sleep(endConsensus.Sub(time.Now()))
 
-		if state.receivedMinLeaderValue > state.ownLeaderValue {
+		time.Sleep(endConsensus.Sub(time.Now()))
+		startConsensus = time.Now()
+
+		if state.receivedMinLeaderValue >= state.ownLeaderValue {
 			var newBlock Block
 			newBlock.id = state.currentBlockID + 1
 			newBlock.prev_id = state.currentBlockID
 			newBlock.leader_value = state.ownLeaderValue
-			var filePath = "sorted_messages.txt"
+			var filePath = "./data/sorted_messages.txt"
 			lines, _ := readAllLines(filePath)
-			if len(lines) == 0 {
+			if len(lines) < 2 {
 				continue
 			}
-			for i := 0; i < config.MinedBlockSize && i < len(lines); i++ {
+			for i := 0; i < config.MinedBlockSize; i++ {
 				newBlock.messages = append(newBlock.messages, lines[i])
 			}
 			state.currentBlockID, _ = SaveBlock(newBlock)
-			lines, _ = readAllLines("blockchain.txt")
+			lines, _ = readAllLines("./data/blockchain.txt")
 			for _, peer := range config.Peers {
-				fmt.Println("Sending message to peer " + peer)
+				//fmt.Println("Sending message to peer " + peer)
 				re := regexp.MustCompile(`\d+`)
 				id, _ := strconv.Atoi(re.FindString(peer))
 				peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
