@@ -479,23 +479,7 @@ func saveConfig(config *Config, configPath string) {
 	}
 }
 
-func connectToPeer(h host.Host, peerID peer.ID, address string) error {
-	ctx := context.Background()
-	peerAddr, err := ma.NewMultiaddr(address)
-	if err != nil {
-		return fmt.Errorf("error creating multiaddr: %v", err)
-	}
-	peerInfo, err := peer.AddrInfoFromP2pAddr(peerAddr)
-	if err != nil {
-		return fmt.Errorf("error creating peer info: %v", err)
-	}
 
-	if err := h.Connect(ctx, *peerInfo); err != nil {
-		return fmt.Errorf("failed to connect to peer %s: %v", peerInfo.ID, err)
-	}
-	//fmt.Printf("Successfully connected to peer %s\n", peerInfo.ID)
-	return nil
-}
 
 func getPeerIDFromPublicKey(pubKeyHex string) (peer.ID, error) {
 	pubKeyBytes, err := hex.DecodeString(strings.TrimPrefix(pubKeyHex, "0x"))
