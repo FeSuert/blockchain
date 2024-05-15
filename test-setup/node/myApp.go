@@ -288,13 +288,12 @@ func SaveBlock(block Block) (int, error) {
 	}
 
 	// Format the new message in the correct format
-	newLine := fmt.Sprintf("%d|%d|%d|%s", block.id, block.prev_id, block.leader_value, strings.Join(block.messages, ", "))
+	newLine := fmt.Sprintf("%d/%d/%d/%s", block.id, block.prev_id, block.leader_value, strings.Join(block.messages, ", "))
 
 	var newLines []string
-	blockExists := false
 
 	for _, line := range lines {
-		parts := strings.SplitN(line, "|", 4)
+		parts := strings.SplitN(line, "/", 4)
 		if len(parts) < 4 {
 			continue
 		}
@@ -303,7 +302,6 @@ func SaveBlock(block Block) (int, error) {
 		existingLeaderValue, _ := strconv.Atoi(parts[2])
 
 		if block.id == existingID {
-			blockExists = true
 			if block.leader_value > existingLeaderValue || block.leader_value == existingLeaderValue {
 				// New block has higher leader_value
 				return state.currentBlockID, nil
@@ -316,9 +314,7 @@ func SaveBlock(block Block) (int, error) {
 	}
 
 	// Append the new message if it's unique or replaced an existing one
-	if !blockExists {
-		newLines = append(newLines, newLine)
-	}
+	newLines = append(newLines, newLine)
 
 	// Send the new block to all peers
 	for _, peer := range config.Peers {
@@ -332,27 +328,29 @@ func SaveBlock(block Block) (int, error) {
 
 	// Sort the lines based on id
 	sort.SliceStable(newLines, func(i, j int) bool {
-		id1, _ := strconv.Atoi(strings.SplitN(newLines[i], "|", 4)[0])
-		id2, _ := strconv.Atoi(strings.SplitN(newLines[j], "|", 4)[0])
+		id1, _ := strconv.Atoi(strings.SplitN(newLines[i], "/", 4)[0])
+		id2, _ := strconv.Atoi(strings.SplitN(newLines[j], "/", 4)[0])
 		return id1 < id2
 	})
 
 	// Write the sorted lines back to the file
 	err = writeAllLines(filePath, newLines)
 	if err != nil {
+		fmt.Println("Writing all lines:", err)
 		return state.currentBlockID, err
 	}
 
 	// Remove transactions included in the block from sorted_messages.txt
 	for _, msg := range block.messages {
-		if err := removeTransaction(msg); err != nil {
+		err := removeTransaction(msg)
+		if err != nil {
 			fmt.Println("Error removing transaction:", err)
 		}
 	}
 
 	// Return the last ID in the saved file
-	lastID, _ := strconv.Atoi(strings.SplitN(newLines[len(newLines)-1], "|", 4)[0])
-	return lastID, err
+	lastID, _ := strconv.Atoi(strings.SplitN(newLines[len(newLines)-1], "/", 4)[0])
+	return lastID + 1, err
 }
 
 // SaveTransaction updates the file with a new message and sends it to all peers.
@@ -409,31 +407,28 @@ func removeTransaction(targetLine string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
-	// Read the current contents of the file
 	filePath := "./data/sorted_messages.txt"
+	targetLine = strings.TrimSpace(targetLine)
 	lines, err := readAllLines(filePath)
 	if err != nil {
 		return err
 	}
 
-	// Find and remove the target message
 	var newLines []string
-	removed := false
 	for _, line := range lines {
-		if strings.Contains(line, targetLine) {
-			fmt.Println("Message found, removing:", line)
-			removed = true
-		} else {
+		line = strings.TrimSpace(line)
+		if !strings.Contains(line, targetLine) {
 			newLines = append(newLines, line)
 		}
 	}
 
-	if !removed {
-		fmt.Println("Message not found, nothing to remove:", targetLine)
+	err = writeAllLines(filePath, newLines)
+	if err != nil {
+		fmt.Println("Error writing updated transactions:", err)
+		return err
 	}
 
-	// Write the updated lines back to the file
-	return writeAllLines(filePath, newLines)
+	return nil
 }
 
 // readAllLines reads all lines from the file
@@ -548,6 +543,16 @@ func main() {
 	}
 	configPath := os.Args[1]
 
+	blockchainFilePath := "./data/blockchain.txt"
+	blockchainLines, err := readAllLines(blockchainFilePath)
+	if len(blockchainLines) > 0 {
+		lastLine := blockchainLines[len(blockchainLines)-1]
+		parts := strings.SplitN(lastLine, "/", 4)
+		if len(parts) >= 1 {
+			state.currentBlockID, _ = strconv.Atoi(parts[0])
+		}
+	}
+
 	server := &JSONRPCServer{}
 	go StartJSONRPCServer(7654, server)
 
@@ -603,7 +608,7 @@ func main() {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		receivedString = strings.TrimSpace(receivedString)
-		fmt.Println("Received message:" + receivedString)
+		//fmt.Println("Received message:" + receivedString)
 
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
@@ -723,13 +728,13 @@ func main() {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		receivedString = strings.TrimSpace(receivedString)
-		fmt.Println("Received Block Message:" + receivedString)
+		//fmt.Println("Received Block Message:" + receivedString)
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
 			return
 		}
 
-		parts := strings.SplitN(receivedString, "|", 4)
+		parts := strings.SplitN(receivedString, "/", 4)
 		if len(parts) != 4 {
 			fmt.Println("Invalid input format:", receivedString)
 			return
@@ -840,11 +845,8 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	saveConfig(&config, configPath)
-	consensusTimeout := 30 * time.Second // Define the consensus timeout duration
-
-	for i := 0; i < 10; i++ {
-		startConsensus := time.Now()
-		fmt.Println("Start Consensus:", startConsensus)
+	time.Sleep(10 * time.Second)
+	for {
 
 		blockchainFilePath := "./data/blockchain.txt"
 		blockchainLines, err := readAllLines(blockchainFilePath)
@@ -854,9 +856,10 @@ func main() {
 		}
 		if len(blockchainLines) > 0 {
 			lastLine := blockchainLines[len(blockchainLines)-1]
-			parts := strings.SplitN(lastLine, "|", 4)
+			parts := strings.SplitN(lastLine, "/", 4)
 			if len(parts) >= 1 {
 				state.currentBlockID, _ = strconv.Atoi(parts[0])
+				state.currentBlockID += 1
 			}
 		}
 
@@ -887,15 +890,12 @@ func main() {
 		}
 
 		// Wait for the consensus timeout duration
-		select {
-		case <-time.After(consensusTimeout):
-			fmt.Println("End Consensus:", time.Now())
-		}
+		time.Sleep(10 * time.Second)
 
 		if state.receivedMinLeaderValue >= state.ownLeaderValue {
 			var newBlock Block
-			newBlock.id = state.currentBlockID + 1
-			newBlock.prev_id = state.currentBlockID
+			newBlock.id = state.currentBlockID
+			newBlock.prev_id = state.currentBlockID - 1
 			newBlock.leader_value = state.ownLeaderValue
 
 			fmt.Println("Creating new block")
@@ -913,6 +913,7 @@ func main() {
 			}
 		}
 	}
+
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
 	<-sigCh
