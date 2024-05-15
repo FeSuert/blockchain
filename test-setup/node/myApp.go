@@ -322,7 +322,6 @@ func SaveBlock(block Block) (int, error) {
 
 	// Send the new block to all peers
 	for _, peer := range config.Peers {
-		//fmt.Println("Sending block to peer " + peer)
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
@@ -340,12 +339,14 @@ func SaveBlock(block Block) (int, error) {
 
 	// Write the sorted lines back to the file
 	err = writeAllLines(filePath, newLines)
+	if err != nil {
+		return state.currentBlockID, err
+	}
 
+	// Remove transactions included in the block from sorted_messages.txt
 	for _, msg := range block.messages {
-		targetLine := msg // assuming msg includes the timestamp
-		err := removeTransaction(targetLine)
-		if err != nil {
-			return state.currentBlockID, err
+		if err := removeTransaction(msg); err != nil {
+			fmt.Println("Error removing transaction:", err)
 		}
 	}
 
@@ -417,16 +418,18 @@ func removeTransaction(targetLine string) error {
 
 	// Find and remove the target message
 	var newLines []string
+	removed := false
 	for _, line := range lines {
-		if line != targetLine {
+		if strings.Contains(line, targetLine) {
+			fmt.Println("Message found, removing:", line)
+			removed = true
+		} else {
 			newLines = append(newLines, line)
 		}
 	}
 
-	// If the message was not found, return an error
-	if len(newLines) == len(lines) {
+	if !removed {
 		fmt.Println("Message not found, nothing to remove:", targetLine)
-		return nil
 	}
 
 	// Write the updated lines back to the file
@@ -633,20 +636,22 @@ func main() {
 	node.SetStreamHandler("/transactions", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
-		fmt.Println("Received message:" + receivedString)
+		receivedString = strings.TrimSpace(receivedString)
+		//fmt.Println("Received message:" + receivedString)
 		if err != nil {
-			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+			fmt.Println("Error reading incoming string:", err)
+			return
 		}
 
 		parts := strings.SplitN(receivedString, "|", 2)
 		if len(parts) != 2 {
-			fmt.Println("Ungültiges Eingabeformat:", receivedString)
+			fmt.Println("Invalid input format:", receivedString)
 			return
 		}
 		content := strings.TrimSpace(parts[1])
 		time, err := time.Parse(time.RFC3339, parts[0])
 		if err != nil {
-			fmt.Println("Fehler beim Parsen der Zeit:", err)
+			fmt.Println("Error parsing time:", err)
 			return
 		}
 
@@ -659,7 +664,7 @@ func main() {
 		// Update file
 		err = SaveTransaction(message)
 		if err != nil {
-			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
+			fmt.Println("Error updating file:", err)
 			return
 		}
 	})
@@ -667,14 +672,16 @@ func main() {
 	node.SetStreamHandler("/consensus", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
-		fmt.Println("Received message:" + receivedString)
+		receivedString = strings.TrimSpace(receivedString)
+		fmt.Println("Received Consensus Message:" + receivedString)
 		if err != nil {
-			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+			fmt.Println("Error reading incoming string:", err)
+			return
 		}
 
 		parts := strings.SplitN(receivedString, "|", 2)
 		if len(parts) != 2 {
-			fmt.Println("Ungültiges Eingabeformat:", receivedString)
+			fmt.Println("Invalid input format:", receivedString)
 			return
 		}
 		currentBlockID, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
@@ -685,7 +692,6 @@ func main() {
 		if currentBlockID > state.currentBlockID {
 			fmt.Println("Newer ID received:", currentBlockID)
 			for _, peer := range config.Peers {
-
 				re := regexp.MustCompile(`\d+`)
 				id, _ := strconv.Atoi(re.FindString(peer))
 				peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
@@ -694,7 +700,6 @@ func main() {
 					fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
 					continue
 				}
-				//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
 				address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 				SendMessage(node, address, nodeName+"\n", "/peers")
 			}
@@ -703,7 +708,7 @@ func main() {
 
 		leaderValue, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 		if err != nil {
-			fmt.Println("Fehler beim konvertieren des String:", err)
+			fmt.Println("Error converting string:", err)
 			return
 		}
 
@@ -717,43 +722,45 @@ func main() {
 	node.SetStreamHandler("/blockchain", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
-		fmt.Println("Received message:" + receivedString)
+		receivedString = strings.TrimSpace(receivedString)
+		fmt.Println("Received Block Message:" + receivedString)
 		if err != nil {
-			fmt.Println("Fehler beim Lesen des eingehenden Strings:", err)
+			fmt.Println("Error reading incoming string:", err)
+			return
 		}
 
 		parts := strings.SplitN(receivedString, "|", 4)
 		if len(parts) != 4 {
-			fmt.Println("Ungültiges Eingabeformat:", receivedString)
+			fmt.Println("Invalid input format:", receivedString)
 			return
 		}
 		currentID, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
-		previouseID, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+		prevID, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
 		leaderValue, _ := strconv.Atoi(strings.TrimSpace(parts[2]))
-		transactions := strings.Split(strings.TrimSpace(parts[3]), ",")
+		transactions := strings.Split(strings.TrimSpace(parts[3]), ", ")
 
-		// Generate new message
+		// Generate new block
 		receivedBlock := Block{
 			id:           currentID,
-			prev_id:      previouseID,
+			prev_id:      prevID,
 			leader_value: leaderValue,
 			messages:     transactions,
 		}
 
 		// Update file
 		state.currentBlockID, err = SaveBlock(receivedBlock)
-		var filePath = "./data/sorted_messages.txt"
-		var BlockTransactions []string
-		lines, _ := readAllLines(filePath)
-		for i := 0; i < config.MinedBlockSize; i++ {
-			BlockTransactions = append(BlockTransactions, lines[i])
-		}
-		var root, _ = MerkleRootHash(BlockTransactions)
-		state.ownLeaderValue = CalculateLeaderValue(root)
 		if err != nil {
-			fmt.Println("Fehler beim Aktualisieren der Datei:", err)
+			fmt.Println("Error updating file:", err)
 			return
 		}
+		var filePath = "./data/sorted_messages.txt"
+		var blockTransactions []string
+		lines, _ := readAllLines(filePath)
+		for i := 0; i < config.MinedBlockSize; i++ {
+			blockTransactions = append(blockTransactions, lines[i])
+		}
+		var root, _ = MerkleRootHash(blockTransactions)
+		state.ownLeaderValue = CalculateLeaderValue(root)
 	})
 
 	time.Sleep(1 * time.Second)
@@ -833,57 +840,71 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	saveConfig(&config, configPath)
-	var startConsensus = time.Now()
-	fmt.Println("Start Consensus:", startConsensus)
-	for {
+	consensusTimeout := 30 * time.Second // Define the consensus timeout duration
+
+	for i := 0; i < 10; i++ {
+		startConsensus := time.Now()
+		fmt.Println("Start Consensus:", startConsensus)
+
+		blockchainFilePath := "./data/blockchain.txt"
+		blockchainLines, err := readAllLines(blockchainFilePath)
+		if err != nil {
+			fmt.Println("Error reading blockchain file:", err)
+			continue
+		}
+		if len(blockchainLines) > 0 {
+			lastLine := blockchainLines[len(blockchainLines)-1]
+			parts := strings.SplitN(lastLine, "|", 4)
+			if len(parts) >= 1 {
+				state.currentBlockID, _ = strconv.Atoi(parts[0])
+			}
+		}
+
 		var filePath = "./data/sorted_messages.txt"
 		var BlockTransactions []string
 		lines, _ := readAllLines(filePath)
-		fmt.Println(len(lines), lines)
-		if len(lines) < 2 {
+
+		if len(lines) < config.MinedBlockSize {
+			fmt.Println("Not enough transactions to create a block. Waiting for new transactions...")
+			time.Sleep(time.Second) // Sleep briefly before checking again
 			continue
 		}
+
 		fmt.Println("Appending transactions")
 		for i := 0; i < config.MinedBlockSize; i++ {
 			BlockTransactions = append(BlockTransactions, lines[i])
 		}
-		var root, _ = MerkleRootHash(BlockTransactions)
+		root, _ := MerkleRootHash(BlockTransactions)
 		state.ownLeaderValue = CalculateLeaderValue(root)
 		state.receivedMinLeaderValue = state.ownLeaderValue
 		fmt.Println("Sending Leadervalue")
 		for _, peer := range config.Peers {
-			//fmt.Println("Sending message to peer " + peer)
 			re := regexp.MustCompile(`\d+`)
 			id, _ := strconv.Atoi(re.FindString(peer))
 			peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
 			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-			SendMessage(node, address, strconv.Itoa(state.ownLeaderValue), "/consensus")
+			SendMessage(node, address, fmt.Sprintf("%d|%d", state.currentBlockID, state.ownLeaderValue)+"\n", "/consensus")
 		}
-		// Berechnung des Endzeitpunkts des Konsensusprozesses zur nächsten vollen Minute
-		nextMinute := startConsensus.Truncate(time.Minute).Add(time.Minute)
-		var endConsensus = nextMinute
-		fmt.Println("End Consensus:", endConsensus)
 
-		time.Sleep(endConsensus.Sub(time.Now()))
-		startConsensus = time.Now()
+		// Wait for the consensus timeout duration
+		select {
+		case <-time.After(consensusTimeout):
+			fmt.Println("End Consensus:", time.Now())
+		}
 
 		if state.receivedMinLeaderValue >= state.ownLeaderValue {
 			var newBlock Block
 			newBlock.id = state.currentBlockID + 1
 			newBlock.prev_id = state.currentBlockID
 			newBlock.leader_value = state.ownLeaderValue
-			var filePath = "./data/sorted_messages.txt"
-			lines, _ := readAllLines(filePath)
-			if len(lines) < 2 {
-				continue
-			}
+
+			fmt.Println("Creating new block")
 			for i := 0; i < config.MinedBlockSize; i++ {
 				newBlock.messages = append(newBlock.messages, lines[i])
 			}
 			state.currentBlockID, _ = SaveBlock(newBlock)
 			lines, _ = readAllLines("./data/blockchain.txt")
 			for _, peer := range config.Peers {
-				//fmt.Println("Sending message to peer " + peer)
 				re := regexp.MustCompile(`\d+`)
 				id, _ := strconv.Atoi(re.FindString(peer))
 				peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
@@ -891,12 +912,12 @@ func main() {
 				SendMessage(node, address, lines[len(lines)-1], "/blockchain")
 			}
 		}
-		sigCh := make(chan os.Signal)
-		signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
-		<-sigCh
+	}
+	sigCh := make(chan os.Signal)
+	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)
+	<-sigCh
 
-		if err := node.Close(); err != nil {
-			panic(err)
-		}
+	if err := node.Close(); err != nil {
+		panic(err)
 	}
 }
