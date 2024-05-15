@@ -758,14 +758,14 @@ func main() {
 			fmt.Println("Error updating file:", err)
 			return
 		}
-		var filePath = "./data/sorted_messages.txt"
-		var blockTransactions []string
-		lines, _ := readAllLines(filePath)
-		for i := 0; i < config.MinedBlockSize; i++ {
-			blockTransactions = append(blockTransactions, lines[i])
-		}
-		var root, _ = MerkleRootHash(blockTransactions)
-		state.ownLeaderValue = CalculateLeaderValue(root)
+		// var filePath = "./data/sorted_messages.txt"
+		// var blockTransactions []stringm
+		// lines, _ := readAllLines(filePath)
+		// for i := 0; i < config.MinedBlockSize; i++ {
+		// 	blockTransactions = append(blockTransactions, lines[i])
+		// }
+		// var root, _ = MerkleRootHash(blockTransactions)
+		// state.ownLeaderValue = CalculateLeaderValue(root)
 	})
 
 	time.Sleep(1 * time.Second)
@@ -845,7 +845,8 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	saveConfig(&config, configPath)
-	time.Sleep(10 * time.Second)
+	// time.Sleep(10 * time.Second)
+	var startConsensus = time.Now()
 	for {
 
 		blockchainFilePath := "./data/blockchain.txt"
@@ -869,7 +870,7 @@ func main() {
 
 		if len(lines) < config.MinedBlockSize {
 			fmt.Println("Not enough transactions to create a block. Waiting for new transactions...")
-			time.Sleep(time.Second) // Sleep briefly before checking again
+			// time.Sleep(time.Second) // Sleep briefly before checking again
 			continue
 		}
 
@@ -890,7 +891,17 @@ func main() {
 		}
 
 		// Wait for the consensus timeout duration
-		time.Sleep(10 * time.Second)
+		// time.Sleep(10 * time.Second)
+		nextMinute := startConsensus.Truncate(time.Minute).Add(time.Minute * 2)
+		var endConsensus = nextMinute
+		for {
+			if time.Now().After(endConsensus) {
+				break
+			}
+		}
+		// time.Sleep(endConsensus.Sub(time.Now()))
+		startConsensus = time.Now()
+		fmt.Println(startConsensus, endConsensus)
 
 		if state.receivedMinLeaderValue >= state.ownLeaderValue {
 			var newBlock Block
@@ -902,6 +913,7 @@ func main() {
 			for i := 0; i < config.MinedBlockSize; i++ {
 				newBlock.messages = append(newBlock.messages, lines[i])
 			}
+			fmt.Println(newBlock)
 			state.currentBlockID, _ = SaveBlock(newBlock)
 			lines, _ = readAllLines("./data/blockchain.txt")
 			for _, peer := range config.Peers {
@@ -910,7 +922,9 @@ func main() {
 				peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
 				address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 				SendMessage(node, address, lines[len(lines)-1], "/blockchain")
+				fmt.Println("Sending Block")
 			}
+			fmt.Println("Ended loop iteration")
 		}
 	}
 
