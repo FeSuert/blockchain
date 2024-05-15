@@ -3,12 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,31 +18,17 @@ import (
 	"time"
 
 	"github.com/cbergoon/merkletree"
-	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	prt "github.com/libp2p/go-libp2p/core/protocol"
 	ma "github.com/multiformats/go-multiaddr"
-	"github.com/pelletier/go-toml"
 	"github.com/ybbus/jsonrpc"
 )
 
 var (
 	fileMutex sync.Mutex
 )
-
-type Config struct {
-	Peers             []string `toml:"peers"`
-	RPCPort           int64    `toml:"rpc_port"`
-	SendPort          int64    `toml:"send_port"`
-	Miners            []string `toml:"miners"`
-	PrivateKey        string   `toml:"private_key"`
-	MinedBlockSize    int      `toml:"mined_block_size"`
-	LeaderProbability float64  `toml:"leader_probability"`
-}
-
 var nodeName string
 
 type Content struct {
@@ -160,11 +143,11 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
 		// Get the peer's public key from the node list
-		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
 		// Create the peer address from the peer string and the peer ID
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 		// Connect to the peer if not already connected
-		connectToPeer(node, peerID, address)
+		ConnectToPeer(node, peerID, address)
 		// Get the time parts from the current time string
 		timeParts := strings.Split(time.String(), " ")
 		// Create the timestamp string in the correct format
@@ -320,9 +303,9 @@ func SaveBlock(block Block) (int, error) {
 	for _, peer := range config.Peers {
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
-		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-		connectToPeer(node, peerID, address)
+		ConnectToPeer(node, peerID, address)
 		SendMessage(node, address, newLine+"\n", "/blockchain")
 	}
 
@@ -383,9 +366,9 @@ func SaveTransaction(message Message) error {
 		//fmt.Println("Sending message to peer " + peer)
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
-		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+		peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-		connectToPeer(node, peerID, address)
+		ConnectToPeer(node, peerID, address)
 		SendMessage(node, address, newLine+"\n", "/transactions")
 	}
 
@@ -467,32 +450,6 @@ func writeAllLines(filePath string, lines []string) error {
 	return writer.Flush()
 }
 
-func saveConfig(config *Config, configPath string) {
-	data, err := toml.Marshal(config)
-	if err != nil {
-		log.Fatalf("Error marshalling config: %s", err)
-	}
-
-	err = os.WriteFile(configPath, data, 0644)
-	if err != nil {
-		log.Fatalf("Error writing config to file: %s", err)
-	}
-}
-
-
-
-func getPeerIDFromPublicKey(pubKeyHex string) (peer.ID, error) {
-	pubKeyBytes, err := hex.DecodeString(strings.TrimPrefix(pubKeyHex, "0x"))
-	if err != nil {
-		return "", fmt.Errorf("error decoding public key: %v", err)
-	}
-	libp2pPubKey, err := crypto.UnmarshalEd25519PublicKey(pubKeyBytes)
-	if err != nil {
-		return "", fmt.Errorf("error unmarshalling public key: %v", err)
-	}
-	return peer.IDFromPublicKey(libp2pPubKey)
-}
-
 func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
 	ctx := context.Background()
 	peerMultiAddr, err := ma.NewMultiaddr(peerAddr)
@@ -544,46 +501,17 @@ func main() {
 	numbers := re.FindString(configPath)
 	nodeName = "node" + numbers
 
-	file, err := os.Open(configPath)
+	err = DecodeConfig(configPath, config)
 	if err != nil {
-		fmt.Println("Error opening config file:", err)
+		fmt.Println("Error decoding config:", err)
 		return
 	}
-	defer file.Close()
-
-	if err := toml.NewDecoder(file).Decode(&config); err != nil {
-		fmt.Println("Error reading config file:", err)
+	
+	fmt.Println(config.PrivateKey)
+	node, err := RetrieveNodeFromPrivateKey(config.PrivateKey)
+	if err != nil {
+		fmt.Println("Error calculating peer ID:", err)
 		return
-	}
-
-	// Convert hex string to bytes
-	privateKeyHex := strings.TrimLeft(config.PrivateKey, "0x")
-	privateKeyBytes, err := hex.DecodeString(privateKeyHex)
-	if err != nil {
-		panic(err)
-	}
-
-	// Create Ed25519 private key from seed
-	priv := ed25519.NewKeyFromSeed(privateKeyBytes)
-
-	// Convert private key to libp2p format
-	libp2pPrivKey, err := crypto.UnmarshalEd25519PrivateKey(priv)
-	if err != nil {
-		panic(err)
-	}
-	// Calculate the peer ID using the private key
-	peerID, err := peer.IDFromPrivateKey(libp2pPrivKey)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Node Peer ID:", peerID)
-	// Generate new node
-	node, err = libp2p.New(
-		libp2p.Identity(libp2pPrivKey),
-		libp2p.ListenAddrStrings(fmt.Sprintf("/dns4/%s/tcp/8080", nodeName)),
-	)
-	if err != nil {
-		panic(err)
 	}
 	fmt.Println("Node Addresses:", node.Addrs())
 
@@ -608,9 +536,9 @@ func main() {
 			//fmt.Println("Sending message to peer " + peer)
 			re := regexp.MustCompile(`\d+`)
 			id, _ := strconv.Atoi(re.FindString(peer))
-			peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+			peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
 			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-			connectToPeer(node, peerID, address)
+			ConnectToPeer(node, peerID, address)
 
 			filePath := "./data/blockchain.txt"
 			lines, _ := readAllLines(filePath)
@@ -683,7 +611,7 @@ func main() {
 			for _, peer := range config.Peers {
 				re := regexp.MustCompile(`\d+`)
 				id, _ := strconv.Atoi(re.FindString(peer))
-				peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+				peerID, err := GetPeerIDFromPublicKey(config.Miners[id-1])
 
 				if err != nil {
 					fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
@@ -758,7 +686,7 @@ func main() {
 
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
-		peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+		peerID, err := GetPeerIDFromPublicKey(config.Miners[id-1])
 
 		if err != nil {
 			fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
@@ -767,7 +695,7 @@ func main() {
 		//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 
-		if err := connectToPeer(node, peerID, address); err != nil {
+		if err := ConnectToPeer(node, peerID, address); err != nil {
 			fmt.Printf("Error connecting to peer %s: %v\n", peerID, err)
 		}
 
@@ -786,7 +714,7 @@ func main() {
 
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
-		peerID, err := getPeerIDFromPublicKey(config.Miners[id-1])
+		peerID, err := GetPeerIDFromPublicKey(config.Miners[id-1])
 
 		if err != nil {
 			fmt.Printf("Error getting peer ID for peer %s: %v\n", peer, err)
@@ -796,7 +724,7 @@ func main() {
 		//fmt.Printf("Trying to connect to node %s with public key %s (Peer ID: %s)\n", config.Peers[i], miner, peerID)
 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 
-		if err := connectToPeer(node, peerID, address); err != nil {
+		if err := ConnectToPeer(node, peerID, address); err != nil {
 			fmt.Printf("Error connecting to peer %s: %v\n", peerID, err)
 		}
 
@@ -818,9 +746,9 @@ func main() {
 	// 	fmt.Println("Sending message to peer " + peer)
 	// 	re := regexp.MustCompile(`\d+`)
 	// 	id, _ := strconv.Atoi(re.FindString(peer))
-	// 	peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+	// 	peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
 	// 	address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-	// 	connectToPeer(node, peerID, address)
+	// 	ConnectToPeer(node, peerID, address)
 	// 	timeParts := strings.Split(message.Time.String(), " ")
 	// 	timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
 	// 	SendMessage(node, address, timeStr+"|Message from "+nodeName+"\n", "/transactions")
@@ -828,7 +756,7 @@ func main() {
 
 	time.Sleep(1 * time.Second)
 
-	saveConfig(&config, configPath)
+	SaveConfig(&config, configPath)
 	// time.Sleep(10 * time.Second)
 	var startConsensus = time.Now()
 	for {
@@ -869,7 +797,7 @@ func main() {
 		for _, peer := range config.Peers {
 			re := regexp.MustCompile(`\d+`)
 			id, _ := strconv.Atoi(re.FindString(peer))
-			peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+			peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
 			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 			SendMessage(node, address, fmt.Sprintf("%d|%d", state.currentBlockID, state.ownLeaderValue)+"\n", "/consensus")
 		}
@@ -903,7 +831,7 @@ func main() {
 			for _, peer := range config.Peers {
 				re := regexp.MustCompile(`\d+`)
 				id, _ := strconv.Atoi(re.FindString(peer))
-				peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
+				peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
 				address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 				SendMessage(node, address, lines[len(lines)-1], "/blockchain")
 				fmt.Println("Sending Block")

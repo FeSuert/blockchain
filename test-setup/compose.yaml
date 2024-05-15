@@ -4,16 +4,15 @@ services:
     build: node
     volumes:
       - ./node1_data:/app/data
-      - ./node/myapp/:/app/
     expose:
       - 7654
+    #command: sleep 5000
     command: ["/app/node", "/app/data/config1.toml"]
 
   node2:
     <<: *node
     volumes:
       - ./node2_data:/app/data
-      - ./node/myapp/:/app/
     expose:
       - 7654
     command: ["/app/node", "/app/data/config2.toml"]
@@ -22,7 +21,6 @@ services:
     <<: *node
     volumes:
       - ./node3_data:/app/data
-      - ./node/myapp/:/app/
     expose:
       - 7654
     command: ["/app/node", "/app/data/config3.toml"]
@@ -31,7 +29,6 @@ services:
     <<: *node
     volumes:
       - ./node4_data:/app/data
-      - ./node/myapp/:/app/
     expose:
       - 7654
     command: ["/app/node", "/app/data/config4.toml"]
@@ -40,7 +37,6 @@ services:
     <<: *node
     volumes:
       - ./node5_data:/app/data
-      - ./node/myapp/:/app/
     expose:
       - 7654
     command: ["/app/node", "/app/data/config5.toml"]
