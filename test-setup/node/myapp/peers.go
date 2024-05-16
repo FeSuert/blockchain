@@ -1,18 +1,24 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 )
+
+var GLOBAL_BLOCKCHAIN_PATH = "./data/blockchain.txt"
 
 func ConnectToPeer(h host.Host, peerID peer.ID, address string, debug ...bool) error {
 
@@ -27,7 +33,7 @@ func ConnectToPeer(h host.Host, peerID peer.ID, address string, debug ...bool) e
 		return fmt.Errorf("failed to connect to peer %s: %v", peerInfo.ID, err)
 	}
 
-	if debug[0] == true {
+	if debug != nil {
 		fmt.Printf("Successfully connected to peer %s\n", peerInfo.ID)
 	}
 	return nil
@@ -64,7 +70,6 @@ func GetPeerIDFromPublicKey(pubKeyHex string) (peer.ID, error) {
 
 func RetrieveNodeFromPrivateKey(PrivKey string) (host.Host, error) {
 
-	fmt.Println(PrivKey)
 	priv, err := GetPrivateKeyFromString(PrivKey)
 	if err != nil {
 		return nil, fmt.Errorf("error getting private key: %v", err)
@@ -92,11 +97,9 @@ func RetrieveNodeFromPrivateKey(PrivKey string) (host.Host, error) {
 
 func GetPrivateKeyFromString(HexKey string) (ed25519.PrivateKey, error) {
 	// Convert hex string to bytes
-	fmt.Println(HexKey)
 	privateKeyHex := strings.TrimLeft(HexKey, "0x")
-	fmt.Println(privateKeyHex)
+
 	privateKeyBytes, err := hex.DecodeString(privateKeyHex)
-	fmt.Println(privateKeyBytes)
 	if err != nil {
 		panic(err)
 	}
@@ -115,4 +118,50 @@ func GenerateNode(libp2pPrivKey crypto.PrivKey) (host.Host, error) {
 		panic(err)
 	}
 	return node, nil
+}
+
+func OpenPeerStream(node host.Host, config Config) {
+	node.SetStreamHandler("/peers", func(s network.Stream) {
+		config = handleIncomingMessage(s, config)
+
+	})
+}
+
+func handleIncomingMessage(s network.Stream, config Config) Config {
+	reader := bufio.NewReader(s)
+	receivedString, err := reader.ReadString('\n')
+	receivedString = strings.TrimSpace(receivedString)
+
+	if err != nil {
+		fmt.Println("Error reading incoming string:", err)
+		return config
+	}
+
+	config = updatePeersList(receivedString, config)
+
+	for _, peer := range config.Peers {
+		sendMessageToPeer(node, peer, config)
+	}
+	return config
+}
+
+func updatePeersList(receivedString string, config Config) Config {
+	if receivedString != nodeName && !Contains(config.Peers, receivedString) {
+		config.Peers = append(config.Peers, receivedString)
+	}
+	return config
+}
+
+func sendMessageToPeer(node host.Host, peer string, config Config) {
+	re := regexp.MustCompile(`\d+`)
+	id, _ := strconv.Atoi(re.FindString(peer))
+	peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
+	address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+	ConnectToPeer(node, peerID, address)
+
+	lines, _ := ReadAllLines(GLOBAL_BLOCKCHAIN_PATH)
+
+	for _, line := range lines {
+		SendMessage(node, address, line+"\n", "/blockchain")
+	}
 }

@@ -167,7 +167,7 @@ func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	var result []string
 
 	filePath := "./data/sorted_messages.txt"
-	lines, _ := readAllLines(filePath)
+	lines, _ := ReadAllLines(filePath)
 
 	for _, line := range lines {
 		parts := strings.SplitN(line, "|", 2)
@@ -250,14 +250,6 @@ func StartJSONRPCServer(port int, server *JSONRPCServer) {
 	}
 }
 
-func contains(slice []string, str string) bool {
-	for _, v := range slice {
-		if v == str {
-			return true
-		}
-	}
-	return false
-}
 
 func SaveBlock(block Block) (int, error) {
 	fileMutex.Lock()
@@ -265,7 +257,7 @@ func SaveBlock(block Block) (int, error) {
 
 	// Read the current contents of the file
 	filePath := "./data/blockchain.txt"
-	lines, err := readAllLines(filePath)
+	lines, err := ReadAllLines(filePath)
 	if err != nil {
 		return state.currentBlockID, err
 	}
@@ -345,7 +337,7 @@ func SaveTransaction(message Message) error {
 
 	// Read the current contents of the file
 	filePath := "./data/sorted_messages.txt"
-	lines, err := readAllLines(filePath)
+	lines, err := ReadAllLines(filePath)
 	if err != nil {
 		return err
 	}
@@ -392,7 +384,7 @@ func removeTransaction(targetLine string) error {
 
 	filePath := "./data/sorted_messages.txt"
 	targetLine = strings.TrimSpace(targetLine)
-	lines, err := readAllLines(filePath)
+	lines, err := ReadAllLines(filePath)
 	if err != nil {
 		return err
 	}
@@ -412,27 +404,6 @@ func removeTransaction(targetLine string) error {
 	}
 
 	return nil
-}
-
-// readAllLines reads all lines from the file
-func readAllLines(filePath string) ([]string, error) {
-	file, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return lines, nil
 }
 
 func writeAllLines(filePath string, lines []string) error {
@@ -485,7 +456,7 @@ func main() {
 	configPath := os.Args[1]
 
 	blockchainFilePath := "./data/blockchain.txt"
-	blockchainLines, err := readAllLines(blockchainFilePath)
+	blockchainLines, err := ReadAllLines(blockchainFilePath)
 	if len(blockchainLines) > 0 {
 		lastLine := blockchainLines[len(blockchainLines)-1]
 		parts := strings.SplitN(lastLine, "/", 4)
@@ -501,13 +472,11 @@ func main() {
 	numbers := re.FindString(configPath)
 	nodeName = "node" + numbers
 
-	err = DecodeConfig(configPath, config)
+	config, err = DecodeConfig(configPath, config)
 	if err != nil {
 		fmt.Println("Error decoding config:", err)
 		return
 	}
-	
-	fmt.Println(config.PrivateKey)
 	node, err := RetrieveNodeFromPrivateKey(config.PrivateKey)
 	if err != nil {
 		fmt.Println("Error calculating peer ID:", err)
@@ -516,39 +485,7 @@ func main() {
 	fmt.Println("Node Addresses:", node.Addrs())
 
 	// Open incoming peerstream
-	node.SetStreamHandler("/peers", func(s network.Stream) {
-		reader := bufio.NewReader(s)
-		receivedString, err := reader.ReadString('\n')
-		receivedString = strings.TrimSpace(receivedString)
-		//fmt.Println("Received message:" + receivedString)
 
-		if err != nil {
-			fmt.Println("Error reading incoming string:", err)
-			return
-		}
-
-		if receivedString != nodeName && !contains(config.Peers, receivedString) {
-			config.Peers = append(config.Peers, receivedString)
-
-		}
-
-		for _, peer := range config.Peers {
-			//fmt.Println("Sending message to peer " + peer)
-			re := regexp.MustCompile(`\d+`)
-			id, _ := strconv.Atoi(re.FindString(peer))
-			peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
-			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-			ConnectToPeer(node, peerID, address)
-
-			filePath := "./data/blockchain.txt"
-			lines, _ := readAllLines(filePath)
-
-			// Check if the message already exists
-			for _, line := range lines {
-				SendMessage(node, address, line+"\n", "/blockchain")
-			}
-		}
-	})
 	// Open incoming transactions
 	node.SetStreamHandler("/transactions", func(s network.Stream) {
 		reader := bufio.NewReader(s)
@@ -672,7 +609,7 @@ func main() {
 		}
 		// var filePath = "./data/sorted_messages.txt"
 		// var blockTransactions []stringm
-		// lines, _ := readAllLines(filePath)
+		// lines, _ := ReadAllLines(filePath)
 		// for i := 0; i < config.MinedBlockSize; i++ {
 		// 	blockTransactions = append(blockTransactions, lines[i])
 		// }
@@ -758,87 +695,87 @@ func main() {
 
 	SaveConfig(&config, configPath)
 	// time.Sleep(10 * time.Second)
-	var startConsensus = time.Now()
-	for {
+	//var startConsensus = time.Now()
+	// for {
 
-		blockchainFilePath := "./data/blockchain.txt"
-		blockchainLines, err := readAllLines(blockchainFilePath)
-		if err != nil {
-			fmt.Println("Error reading blockchain file:", err)
-			continue
-		}
-		if len(blockchainLines) > 0 {
-			lastLine := blockchainLines[len(blockchainLines)-1]
-			parts := strings.SplitN(lastLine, "/", 4)
-			if len(parts) >= 1 {
-				state.currentBlockID, _ = strconv.Atoi(parts[0])
-				state.currentBlockID += 1
-			}
-		}
+	// 	blockchainFilePath := "./data/blockchain.txt"
+	// 	blockchainLines, err := ReadAllLines(blockchainFilePath)
+	// 	if err != nil {
+	// 		fmt.Println("Error reading blockchain file:", err)
+	// 		continue
+	// 	}
+	// 	if len(blockchainLines) > 0 {
+	// 		lastLine := blockchainLines[len(blockchainLines)-1]
+	// 		parts := strings.SplitN(lastLine, "/", 4)
+	// 		if len(parts) >= 1 {
+	// 			state.currentBlockID, _ = strconv.Atoi(parts[0])
+	// 			state.currentBlockID += 1
+	// 		}
+	// 	}
 
-		var filePath = "./data/sorted_messages.txt"
-		var BlockTransactions []string
-		lines, _ := readAllLines(filePath)
+	// 	var filePath = "./data/sorted_messages.txt"
+	// 	var BlockTransactions []string
+	// 	lines, _ := ReadAllLines(filePath)
 
-		if len(lines) < config.MinedBlockSize {
-			fmt.Println("Not enough transactions to create a block. Waiting for new transactions...")
-			// time.Sleep(time.Second) // Sleep briefly before checking again
-			continue
-		}
+	// 	if len(lines) < config.MinedBlockSize {
+	// 		fmt.Println("Not enough transactions to create a block. Waiting for new transactions...")
+	// 		// time.Sleep(time.Second) // Sleep briefly before checking again
+	// 		continue
+	// 	}
 
-		fmt.Println("Appending transactions")
-		for i := 0; i < config.MinedBlockSize; i++ {
-			BlockTransactions = append(BlockTransactions, lines[i])
-		}
-		root, _ := MerkleRootHash(BlockTransactions)
-		state.ownLeaderValue = CalculateLeaderValue(root)
-		state.receivedMinLeaderValue = state.ownLeaderValue
-		fmt.Println("Sending Leadervalue")
-		for _, peer := range config.Peers {
-			re := regexp.MustCompile(`\d+`)
-			id, _ := strconv.Atoi(re.FindString(peer))
-			peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
-			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-			SendMessage(node, address, fmt.Sprintf("%d|%d", state.currentBlockID, state.ownLeaderValue)+"\n", "/consensus")
-		}
+	// 	fmt.Println("Appending transactions")
+	// 	for i := 0; i < config.MinedBlockSize; i++ {
+	// 		BlockTransactions = append(BlockTransactions, lines[i])
+	// 	}
+	// 	root, _ := MerkleRootHash(BlockTransactions)
+	// 	state.ownLeaderValue = CalculateLeaderValue(root)
+	// 	state.receivedMinLeaderValue = state.ownLeaderValue
+	// 	fmt.Println("Sending Leadervalue")
+	// 	for _, peer := range config.Peers {
+	// 		re := regexp.MustCompile(`\d+`)
+	// 		id, _ := strconv.Atoi(re.FindString(peer))
+	// 		peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
+	// 		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+	// 		SendMessage(node, address, fmt.Sprintf("%d|%d", state.currentBlockID, state.ownLeaderValue)+"\n", "/consensus")
+	// 	}
 
-		// Wait for the consensus timeout duration
-		// time.Sleep(10 * time.Second)
-		nextMinute := startConsensus.Truncate(time.Minute).Add(time.Minute * 2)
-		var endConsensus = nextMinute
-		for {
-			if time.Now().After(endConsensus) {
-				break
-			}
-		}
-		// time.Sleep(endConsensus.Sub(time.Now()))
-		startConsensus = time.Now()
-		fmt.Println(startConsensus, endConsensus)
+	// 	// Wait for the consensus timeout duration
+	// 	// time.Sleep(10 * time.Second)
+	// 	nextMinute := startConsensus.Truncate(time.Minute).Add(time.Minute * 2)
+	// 	var endConsensus = nextMinute
+	// 	for {
+	// 		if time.Now().After(endConsensus) {
+	// 			break
+	// 		}
+	// 	}
+	// 	// time.Sleep(endConsensus.Sub(time.Now()))
+	// 	startConsensus = time.Now()
+	// 	fmt.Println(startConsensus, endConsensus)
 
-		if state.receivedMinLeaderValue >= state.ownLeaderValue {
-			var newBlock Block
-			newBlock.id = state.currentBlockID
-			newBlock.prev_id = state.currentBlockID - 1
-			newBlock.leader_value = state.ownLeaderValue
+	// 	if state.receivedMinLeaderValue >= state.ownLeaderValue {
+	// 		var newBlock Block
+	// 		newBlock.id = state.currentBlockID
+	// 		newBlock.prev_id = state.currentBlockID - 1
+	// 		newBlock.leader_value = state.ownLeaderValue
 
-			fmt.Println("Creating new block")
-			for i := 0; i < config.MinedBlockSize; i++ {
-				newBlock.messages = append(newBlock.messages, lines[i])
-			}
-			fmt.Println(newBlock)
-			state.currentBlockID, _ = SaveBlock(newBlock)
-			lines, _ = readAllLines("./data/blockchain.txt")
-			for _, peer := range config.Peers {
-				re := regexp.MustCompile(`\d+`)
-				id, _ := strconv.Atoi(re.FindString(peer))
-				peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
-				address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-				SendMessage(node, address, lines[len(lines)-1], "/blockchain")
-				fmt.Println("Sending Block")
-			}
-			fmt.Println("Ended loop iteration")
-		}
-	}
+	// 		fmt.Println("Creating new block")
+	// 		for i := 0; i < config.MinedBlockSize; i++ {
+	// 			newBlock.messages = append(newBlock.messages, lines[i])
+	// 		}
+	// 		fmt.Println(newBlock)
+	// 		state.currentBlockID, _ = SaveBlock(newBlock)
+	// 		lines, _ = ReadAllLines("./data/blockchain.txt")
+	// 		for _, peer := range config.Peers {
+	// 			re := regexp.MustCompile(`\d+`)
+	// 			id, _ := strconv.Atoi(re.FindString(peer))
+	// 			peerID, _ := GetPeerIDFromPublicKey(config.Miners[id-1])
+	// 			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
+	// 			SendMessage(node, address, lines[len(lines)-1], "/blockchain")
+	// 			fmt.Println("Sending Block")
+	// 		}
+	// 		fmt.Println("Ended loop iteration")
+	// 	}
+	// }
 
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, syscall.SIGKILL, syscall.SIGINT)

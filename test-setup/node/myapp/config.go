@@ -31,19 +31,19 @@ func SaveConfig(config *Config, configPath string) {
 	}
 }
 
-func DecodeConfig(configPath string, config Config) error {
-	fmt.Println(configPath)
+func DecodeConfig(configPath string, config Config) (Config, error) {
+
 	file, err := os.Open(configPath)
 	if err != nil {
 		fmt.Println("Error opening config file:", err)
-		return err
+		return config, err
 	}
 	defer file.Close()
 
 	if err := toml.NewDecoder(file).Decode(&config); err != nil {
 		fmt.Println("Error reading config file:", err)
-		return err
+		return config, err
 	}
-	fmt.Println(config)
-	return nil
+
+	return config, nil
 }

@@ -5,3 +5,7 @@ test-setup/node2_data/blockchain.txt
 test-setup/node5_data/blockchain.txt
 test-setup/node4_data/blockchain.txt
 test-setup/node3_data/blockchain.txt
+test-setup/node5_data/sorted_messages.txt
+test-setup/node3_data/sorted_messages.txt
+test-setup/node3_data/sorted_messages.txt
+test-setup/node5_data/sorted_messages.txt
