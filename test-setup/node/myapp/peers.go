@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	prt "github.com/libp2p/go-libp2p/core/protocol"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -68,7 +69,7 @@ func GetPeerIDFromPublicKey(pubKeyHex string) (peer.ID, error) {
 	return peer.IDFromPublicKey(libp2pPubKey)
 }
 
-func RetrieveNodeFromPrivateKey(PrivKey string) (host.Host, error) {
+func RetrieveNodeFromPrivateKey(PrivKey string, nodeName string) (host.Host, error) {
 
 	priv, err := GetPrivateKeyFromString(PrivKey)
 	if err != nil {
@@ -88,7 +89,7 @@ func RetrieveNodeFromPrivateKey(PrivKey string) (host.Host, error) {
 	}
 	fmt.Println("Node Peer ID:", peerID)
 
-	node, err := GenerateNode(libp2pPrivKey)
+	node, err := GenerateNode(libp2pPrivKey, nodeName)
 	if err != nil {
 		return nil, fmt.Errorf("error generating node: %v", err)
 	}
@@ -108,7 +109,7 @@ func GetPrivateKeyFromString(HexKey string) (ed25519.PrivateKey, error) {
 	return priv, nil
 }
 
-func GenerateNode(libp2pPrivKey crypto.PrivKey) (host.Host, error) {
+func GenerateNode(libp2pPrivKey crypto.PrivKey, nodeName string) (host.Host, error) {
 	// Generate new node
 	node, err := libp2p.New(
 		libp2p.Identity(libp2pPrivKey),
@@ -120,24 +121,23 @@ func GenerateNode(libp2pPrivKey crypto.PrivKey) (host.Host, error) {
 	return node, nil
 }
 
-func OpenPeerStream(node host.Host, config Config) {
+func OpenPeerStream(node host.Host, config *Config, nodeName string) {
 	node.SetStreamHandler("/peers", func(s network.Stream) {
-		config = handleIncomingMessage(s, config)
-
+		*config = handleIncomingMessage(s, *config, node, nodeName)
 	})
 }
 
-func handleIncomingMessage(s network.Stream, config Config) Config {
+func handleIncomingMessage(s network.Stream, config Config, node host.Host, nodeName string) Config {
 	reader := bufio.NewReader(s)
 	receivedString, err := reader.ReadString('\n')
 	receivedString = strings.TrimSpace(receivedString)
-
+	fmt.Println("Received String:" + receivedString)
 	if err != nil {
 		fmt.Println("Error reading incoming string:", err)
 		return config
 	}
 
-	config = updatePeersList(receivedString, config)
+	config = updatePeersList(receivedString, config, nodeName)
 
 	for _, peer := range config.Peers {
 		sendMessageToPeer(node, peer, config)
@@ -145,7 +145,7 @@ func handleIncomingMessage(s network.Stream, config Config) Config {
 	return config
 }
 
-func updatePeersList(receivedString string, config Config) Config {
+func updatePeersList(receivedString string, config Config, nodeName string) Config {
 	if receivedString != nodeName && !Contains(config.Peers, receivedString) {
 		config.Peers = append(config.Peers, receivedString)
 	}
@@ -163,5 +163,32 @@ func sendMessageToPeer(node host.Host, peer string, config Config) {
 
 	for _, line := range lines {
 		SendMessage(node, address, line+"\n", "/blockchain")
+	}
+}
+
+func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
+	ctx := context.Background()
+	peerMultiAddr, err := ma.NewMultiaddr(peerAddr)
+	if err != nil {
+		fmt.Println("Error parsing multiaddress:", err)
+		return
+	}
+
+	peerInfo, err := peer.AddrInfoFromP2pAddr(peerMultiAddr)
+	if err != nil {
+		fmt.Println("Error converting to peer info:", err)
+		return
+	}
+
+	stream, err := h.NewStream(ctx, peerInfo.ID, protocol)
+	if err != nil {
+		fmt.Println("Error opening stream to peer:", peerInfo.ID, err)
+		return
+	}
+	defer stream.Close()
+
+	_, err = stream.Write([]byte(message))
+	if err != nil {
+		fmt.Println("Error sending message to peer:", peerInfo.ID, err)
 	}
 }

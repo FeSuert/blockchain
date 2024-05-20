@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 )
 
@@ -33,4 +34,19 @@ func Contains(slice []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func writeAllLines(filePath string, lines []string) error {
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	for _, line := range lines {
+		fmt.Fprintln(writer, line)
+	}
+
+	return writer.Flush()
 }
