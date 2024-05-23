@@ -21,8 +21,7 @@ RUN apt-get update && apt-get install -y \
 #     ldconfig
 
 # Copy the Go project files into the container
-COPY go.mod go.sum  /app/
-COPY *.go /app/
+COPY * /app/
 
 # Set the working directory inside the container
 WORKDIR /app/
@@ -32,7 +31,7 @@ WORKDIR /app/
 RUN go mod download
 
 # Build the Go application
-RUN go build -o /app/node main.go
+RUN go build -o /app/node
 
 # Cleanup to reduce the image size
 RUN apt-get clean && \
