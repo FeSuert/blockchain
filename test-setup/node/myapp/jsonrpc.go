@@ -30,7 +30,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 	UpdateFile(msg)
 
 	for _, peer := range config.Peers {
-		fmt.Println("Sending message to peer", peer)
+		//fmt.Println("Sending message to peer", peer)
 		re := regexp.MustCompile(`\d+`)
 		id, _ := strconv.Atoi(re.FindString(peer))
 		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])

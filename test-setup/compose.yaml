@@ -41,19 +41,23 @@ services:
       - 7654
     command: ["/app/node", "/app/data/config5.toml"]
 
-  # tester1: &tests
-  #   build: tests
-  #   volumes:
-  #     - ./tests:/tests
-  #   working_dir: /tests
-  #   #command: ["sleep", "500"]
-  #   command: ["python3", "tests.py", "phase1"]
-  #   depends_on:
-  #     - node1
-  #     - node2
-  #     - node3
-  #     - node4
-  #     - node5
+  tester1: &tests
+    build: tests
+    volumes:
+      - ./tests:/tests
+    working_dir: /tests
+    command: ["python3", "tests.py", "tester1"]
+    depends_on:
+      - node1
+      - node2
+      - node3
+      - node4
+      - node5
 
-  # tester2:
-  #   <<: *tests
+  tester2:
+    <<: *tests
+    command: ["python3", "tests.py", "tester2"]
+
+  tester3:
+    <<: *tests
+    command: ["python3", "tests.py", "tester3"]

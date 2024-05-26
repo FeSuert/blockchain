@@ -1,320 +1,297 @@
-2024/05/23 04:36:17 node1:
-    user 13 says hello
-    user 11 says hello
-    user 10 says hello
-    user 8 says hello
-    user 6 says hello
-    user 1 says hello
-    user 4 says hello
-    user 11 says hello
-2024/05/23 04:36:17 node2:
-    user 9 says hello
-    user 5 says hello
-    user 14 says hello
-    user 5 says hello
-    user 10 says hello
-    user 4 says hello
-    user 9 says hello
-    user 8 says hello
-    user 4 says hello
-2024/05/23 04:36:17 node4:
-    user 13 says hello
-    user 14 says hello
-    user 3 says hello
-    user 7 says hello
-    user 6 says hello
-    user 10 says hello
-    user 11 says hello
-    user 1 says hello
-    user 9 says hello
-    user 9 says hello
-    user 11 says hello
-    user 12 says hello
-    user 2 says hello
-    user 10 says hello
-    user 8 says hello
-    user 11 says hello
-    user 1 says hello
-    user 4 says hello
-2024/05/23 04:36:17 node5:
-    user 1 says hello
-    user 9 says hello
-    user 14 says hello
-    user 13 says hello
-    user 3 says hello
-    user 7 says hello
-    user 10 says hello
-    user 6 says hello
-    user 11 says hello
-    user 9 says hello
-    user 11 says hello
-    user 12 says hello
-    user 1 says hello
-    user 11 says hello
-    user 2 says hello
-    user 10 says hello
-    user 8 says hello
-    user 4 says hello
-2024/05/23 04:38:15 node1:
-    user 13 says hello
-    user 11 says hello
-    user 10 says hello
-    user 8 says hello
-    user 6 says hello
-    user 1 says hello
-    user 4 says hello
-    user 5 says hello
-    user 9 says hello
-    user 14 says hello
-    user 3 says hello
-    user 7 says hello
-    user 9 says hello
-    user 5 says hello
-    user 11 says hello
-    user 12 says hello
-    user 10 says hello
-    user 4 says hello
-    user 9 says hello
-    user 2 says hello
-    user 8 says hello
-    user 1 says hello
-    user 11 says hello
-    user 11 says hello
-    user 8 says hello
-    user 4 says hello
-    user 4 says hello
-    user 12 says hello
-    user 14 says hello
-    user 9 says hello
-    user 6 says hello
-    user 11 says hello
-    user 5 says hello
-    user 2 says hello
-    user 8 says hello
-    user 7 says hello
-    user 10 says hello
-    user 13 says hello
-    user 3 says hello
-2024/05/23 04:38:15 node2:
-    user 9 says hello
-    user 5 says hello
-    user 14 says hello
-    user 1 says hello
-    user 13 says hello
-    user 7 says hello
-    user 10 says hello
-    user 3 says hello
-    user 6 says hello
-    user 11 says hello
-    user 8 says hello
-    user 4 says hello
-    user 9 says hello
-    user 5 says hello
-    user 11 says hello
-    user 12 says hello
-    user 10 says hello
-    user 4 says hello
-    user 9 says hello
-    user 1 says hello
-    user 2 says hello
-    user 8 says hello
-    user 11 says hello
-    user 11 says hello
-    user 8 says hello
-    user 4 says hello
-    user 9 says hello
-    user 10 says hello
-    user 14 says hello
-    user 13 says hello
-    user 7 says hello
-    user 2 says hello
-    user 3 says hello
-    user 6 says hello
-    user 11 says hello
-    user 4 says hello
-    user 12 says hello
-2024/05/23 04:38:15 node4:
-    user 13 says hello
-    user 14 says hello
-    user 3 says hello
-    user 7 says hello
-    user 6 says hello
-    user 10 says hello
-    user 11 says hello
-    user 1 says hello
-    user 9 says hello
-    user 5 says hello
-    user 8 says hello
-    user 4 says hello
-    user 9 says hello
-    user 11 says hello
-    user 5 says hello
-    user 12 says hello
-    user 2 says hello
-    user 10 says hello
-    user 8 says hello
-    user 11 says hello
-    user 1 says hello
-    user 4 says hello
-    user 9 says hello
-    user 11 says hello
-    user 4 says hello
-    user 8 says hello
-    user 5 says hello
-    user 2 says hello
-    user 11 says hello
-    user 12 says hello
-    user 8 says hello
-    user 14 says hello
-    user 7 says hello
-    user 6 says hello
-    user 9 says hello
-    user 4 says hello
-2024/05/23 04:38:15 node5:
-    user 1 says hello
-    user 9 says hello
-    user 14 says hello
-    user 13 says hello
-    user 3 says hello
-    user 7 says hello
-    user 10 says hello
-    user 6 says hello
-    user 11 says hello
-    user 5 says hello
-    user 8 says hello
-    user 4 says hello
-    user 9 says hello
-    user 11 says hello
-    user 5 says hello
-    user 12 says hello
-    user 1 says hello
-    user 11 says hello
-    user 2 says hello
-    user 10 says hello
-    user 8 says hello
-    user 4 says hello
-    user 9 says hello
-    user 11 says hello
-    user 4 says hello
-    user 8 says hello
-    user 6 says hello
-    user 11 says hello
-    user 10 says hello
-    user 14 says hello
-    user 9 says hello
-    user 4 says hello
-    user 12 says hello
-    user 3 says hello
-    user 2 says hello
-    user 13 says hello
-    user 7 says hello
-    user 9 says hello
-2024/05/23 04:42:15 node1:
-    user 2 says hello
-    user 3 says hello
-    user 10 says hello
-    user 12 says hello
-    user 1 says hello
-    user 6 says hello
-    user 5 says hello
-    user 4 says hello
-    user 7 says hello
-    user 14 says hello
-    user 11 says hello
-    user 9 says hello
-    user 13 says hello
-    user 13 says hello
-    user 6 says hello
-    user 6 says hello
-    user 7 says hello
-    user 1 says hello
-    user 6 says hello
-    user 14 says hello
-    user 11 says hello
-    user 8 says hello
-    user 6 says hello
-    user 4 says hello
-    user 5 says hello
-    user 12 says hello
-    user 4 says hello
-    user 13 says hello
-    user 6 says hello
-2024/05/23 04:42:15 node2:
-    user 2 says hello
-    user 3 says hello
-    user 10 says hello
-    user 12 says hello
-    user 6 says hello
-    user 1 says hello
-    user 5 says hello
-    user 4 says hello
-    user 7 says hello
-    user 14 says hello
-    user 11 says hello
-    user 9 says hello
-    user 13 says hello
-    user 6 says hello
-    user 1 says hello
-    user 6 says hello
-    user 14 says hello
-    user 7 says hello
-    user 11 says hello
-    user 8 says hello
-    user 6 says hello
-    user 5 says hello
-    user 12 says hello
-    user 6 says hello
-2024/05/23 04:42:15 node4:
-    user 2 says hello
-    user 3 says hello
-    user 12 says hello
-    user 10 says hello
-    user 6 says hello
-    user 1 says hello
-    user 5 says hello
-    user 4 says hello
-    user 14 says hello
-    user 7 says hello
-    user 11 says hello
-    user 9 says hello
-    user 13 says hello
-    user 13 says hello
-    user 6 says hello
-    user 6 says hello
-    user 7 says hello
-    user 1 says hello
-    user 6 says hello
-    user 14 says hello
-    user 11 says hello
-    user 8 says hello
-    user 6 says hello
-    user 5 says hello
-    user 12 says hello
-    user 6 says hello
-2024/05/23 04:42:15 node5:
-    user 2 says hello
-    user 3 says hello
-    user 12 says hello
-    user 10 says hello
-    user 6 says hello
-    user 1 says hello
-    user 5 says hello
-    user 4 says hello
-    user 7 says hello
-    user 14 says hello
-    user 11 says hello
-    user 9 says hello
-    user 13 says hello
-    user 13 says hello
-    user 6 says hello
-    user 6 says hello
-    user 7 says hello
-    user 1 says hello
-    user 6 says hello
-    user 14 says hello
-    user 11 says hello
-    user 8 says hello
-    user 6 says hello
-    user 5 says hello
-    user 12 says hello
-    user 6 says hello
+2024/05/26 07:16:25 node1
+    [nonce: 584090] Bob wants to pay David
+    [nonce: 949088] Bob wants to pay Alice
+    [nonce: 86844] David wants to pay Bob
+    [nonce: 500240] Bob wants to pay Alice
+    [nonce: 297453] David wants to pay Charlie
+    [nonce: 651145] Alice wants to pay Charlie
+    [nonce: 278980] Alice wants to pay Bob
+    [nonce: 688974] Bob wants to pay David
+    [nonce: 727831] David wants to pay Bob
+    [nonce: 694003] David wants to pay Bob
+    [nonce: 576197] Charlie wants to pay Alice
+    [nonce: 848354] David wants to pay Bob
+    [nonce: 20027] David wants to pay Bob
+    [nonce: 58686] Charlie wants to pay Alice
+    [nonce: 203910] Charlie wants to pay Alice
+    [nonce: 895590] Bob wants to pay David
+    [nonce: 877024] David wants to pay Alice
+    [nonce: 874918] Alice wants to pay Charlie
+    [nonce: 376666] Alice wants to pay David
+    [nonce: 881678] Charlie wants to pay Alice
+    [nonce: 778265] David wants to pay Bob
+    [nonce: 518535] David wants to pay Alice
+    [nonce: 190140] Bob wants to pay Alice
+    [nonce: 426952] Alice wants to pay Bob
+    [nonce: 295459] Alice wants to pay David
+    [nonce: 470865] David wants to pay Charlie
+    [nonce: 213733] Alice wants to pay Charlie
+    [nonce: 240795] Charlie wants to pay David
+    [nonce: 657807] David wants to pay Charlie
+    [nonce: 247611] Alice wants to pay Bob
+    [nonce: 216121] David wants to pay Charlie
+    [nonce: 490602] Alice wants to pay Charlie
+    [nonce: 216683] Alice wants to pay Charlie
+    [nonce: 580844] Charlie wants to pay David
+    [nonce: 805346] Bob wants to pay David
+    [nonce: 835435] David wants to pay Alice
+    [nonce: 382161] Charlie wants to pay David
+    [nonce: 611130] Charlie wants to pay Alice
+    [nonce: 784079] Bob wants to pay David
+    [nonce: 912297] David wants to pay Alice
+    [nonce: 28577] Bob wants to pay Charlie
+    [nonce: 129812] Alice wants to pay David
+    [nonce: 439627] Alice wants to pay Bob
+    [nonce: 291592] Charlie wants to pay Bob
+    [nonce: 159196] Bob wants to pay David
+    [nonce: 644657] Charlie wants to pay David
+    [nonce: 252996] Bob wants to pay David
+    [nonce: 653717] Bob wants to pay Charlie
+    [nonce: 81913] David wants to pay Alice
+    [nonce: 273915] Charlie wants to pay Alice
+    [nonce: 649679] David wants to pay Bob
+    [nonce: 278504] Alice wants to pay Bob
+    [nonce: 510256] David wants to pay Alice
+    [nonce: 247322] David wants to pay Alice
+    [nonce: 929089] David wants to pay Alice
+    [nonce: 529027] Charlie wants to pay Alice
+    [nonce: 600816] Alice wants to pay David
+    [nonce: 532650] David wants to pay Bob
+2024/05/26 07:16:25 node2
+    [nonce: 584090] Bob wants to pay David
+    [nonce: 949088] Bob wants to pay Alice
+    [nonce: 86844] David wants to pay Bob
+    [nonce: 500240] Bob wants to pay Alice
+    [nonce: 297453] David wants to pay Charlie
+    [nonce: 651145] Alice wants to pay Charlie
+    [nonce: 278980] Alice wants to pay Bob
+    [nonce: 688974] Bob wants to pay David
+    [nonce: 694003] David wants to pay Bob
+    [nonce: 727831] David wants to pay Bob
+    [nonce: 576197] Charlie wants to pay Alice
+    [nonce: 848354] David wants to pay Bob
+    [nonce: 20027] David wants to pay Bob
+    [nonce: 58686] Charlie wants to pay Alice
+    [nonce: 203910] Charlie wants to pay Alice
+    [nonce: 895590] Bob wants to pay David
+    [nonce: 877024] David wants to pay Alice
+    [nonce: 881678] Charlie wants to pay Alice
+    [nonce: 376666] Alice wants to pay David
+    [nonce: 874918] Alice wants to pay Charlie
+    [nonce: 778265] David wants to pay Bob
+    [nonce: 518535] David wants to pay Alice
+    [nonce: 190140] Bob wants to pay Alice
+    [nonce: 426952] Alice wants to pay Bob
+    [nonce: 295459] Alice wants to pay David
+    [nonce: 470865] David wants to pay Charlie
+    [nonce: 213733] Alice wants to pay Charlie
+    [nonce: 240795] Charlie wants to pay David
+    [nonce: 657807] David wants to pay Charlie
+    [nonce: 216121] David wants to pay Charlie
+    [nonce: 247611] Alice wants to pay Bob
+    [nonce: 490602] Alice wants to pay Charlie
+    [nonce: 216683] Alice wants to pay Charlie
+    [nonce: 580844] Charlie wants to pay David
+    [nonce: 805346] Bob wants to pay David
+    [nonce: 835435] David wants to pay Alice
+    [nonce: 382161] Charlie wants to pay David
+    [nonce: 611130] Charlie wants to pay Alice
+    [nonce: 784079] Bob wants to pay David
+    [nonce: 912297] David wants to pay Alice
+    [nonce: 28577] Bob wants to pay Charlie
+    [nonce: 439627] Alice wants to pay Bob
+    [nonce: 129812] Alice wants to pay David
+    [nonce: 159196] Bob wants to pay David
+    [nonce: 291592] Charlie wants to pay Bob
+    [nonce: 644657] Charlie wants to pay David
+    [nonce: 252996] Bob wants to pay David
+    [nonce: 653717] Bob wants to pay Charlie
+    [nonce: 81913] David wants to pay Alice
+    [nonce: 273915] Charlie wants to pay Alice
+    [nonce: 649679] David wants to pay Bob
+    [nonce: 278504] Alice wants to pay Bob
+    [nonce: 510256] David wants to pay Alice
+    [nonce: 247322] David wants to pay Alice
+    [nonce: 929089] David wants to pay Alice
+    [nonce: 529027] Charlie wants to pay Alice
+    [nonce: 600816] Alice wants to pay David
+    [nonce: 218714] David wants to pay Charlie
+    [nonce: 532650] David wants to pay Bob
+2024/05/26 07:16:25 node3
+    [nonce: 584090] Bob wants to pay David
+    [nonce: 949088] Bob wants to pay Alice
+    [nonce: 86844] David wants to pay Bob
+    [nonce: 500240] Bob wants to pay Alice
+    [nonce: 297453] David wants to pay Charlie
+    [nonce: 651145] Alice wants to pay Charlie
+    [nonce: 278980] Alice wants to pay Bob
+    [nonce: 688974] Bob wants to pay David
+    [nonce: 727831] David wants to pay Bob
+    [nonce: 694003] David wants to pay Bob
+    [nonce: 576197] Charlie wants to pay Alice
+    [nonce: 848354] David wants to pay Bob
+    [nonce: 20027] David wants to pay Bob
+    [nonce: 58686] Charlie wants to pay Alice
+    [nonce: 203910] Charlie wants to pay Alice
+    [nonce: 895590] Bob wants to pay David
+    [nonce: 877024] David wants to pay Alice
+    [nonce: 881678] Charlie wants to pay Alice
+    [nonce: 874918] Alice wants to pay Charlie
+    [nonce: 376666] Alice wants to pay David
+    [nonce: 778265] David wants to pay Bob
+    [nonce: 518535] David wants to pay Alice
+    [nonce: 240795] Charlie wants to pay David
+    [nonce: 470865] David wants to pay Charlie
+    [nonce: 190140] Bob wants to pay Alice
+    [nonce: 426952] Alice wants to pay Bob
+    [nonce: 295459] Alice wants to pay David
+    [nonce: 213733] Alice wants to pay Charlie
+    [nonce: 657807] David wants to pay Charlie
+    [nonce: 216121] David wants to pay Charlie
+    [nonce: 490602] Alice wants to pay Charlie
+    [nonce: 247611] Alice wants to pay Bob
+    [nonce: 580844] Charlie wants to pay David
+    [nonce: 216683] Alice wants to pay Charlie
+    [nonce: 835435] David wants to pay Alice
+    [nonce: 805346] Bob wants to pay David
+    [nonce: 912297] David wants to pay Alice
+    [nonce: 382161] Charlie wants to pay David
+    [nonce: 611130] Charlie wants to pay Alice
+    [nonce: 784079] Bob wants to pay David
+    [nonce: 28577] Bob wants to pay Charlie
+    [nonce: 129812] Alice wants to pay David
+    [nonce: 439627] Alice wants to pay Bob
+    [nonce: 159196] Bob wants to pay David
+    [nonce: 291592] Charlie wants to pay Bob
+    [nonce: 644657] Charlie wants to pay David
+    [nonce: 252996] Bob wants to pay David
+    [nonce: 653717] Bob wants to pay Charlie
+    [nonce: 273915] Charlie wants to pay Alice
+    [nonce: 81913] David wants to pay Alice
+    [nonce: 649679] David wants to pay Bob
+    [nonce: 278504] Alice wants to pay Bob
+    [nonce: 510256] David wants to pay Alice
+    [nonce: 247322] David wants to pay Alice
+    [nonce: 929089] David wants to pay Alice
+    [nonce: 529027] Charlie wants to pay Alice
+    [nonce: 600816] Alice wants to pay David
+    [nonce: 532650] David wants to pay Bob
+2024/05/26 07:16:25 node4
+    [nonce: 584090] Bob wants to pay David
+    [nonce: 949088] Bob wants to pay Alice
+    [nonce: 86844] David wants to pay Bob
+    [nonce: 500240] Bob wants to pay Alice
+    [nonce: 297453] David wants to pay Charlie
+    [nonce: 651145] Alice wants to pay Charlie
+    [nonce: 278980] Alice wants to pay Bob
+    [nonce: 688974] Bob wants to pay David
+    [nonce: 727831] David wants to pay Bob
+    [nonce: 694003] David wants to pay Bob
+    [nonce: 576197] Charlie wants to pay Alice
+    [nonce: 848354] David wants to pay Bob
+    [nonce: 20027] David wants to pay Bob
+    [nonce: 58686] Charlie wants to pay Alice
+    [nonce: 203910] Charlie wants to pay Alice
+    [nonce: 895590] Bob wants to pay David
+    [nonce: 877024] David wants to pay Alice
+    [nonce: 881678] Charlie wants to pay Alice
+    [nonce: 376666] Alice wants to pay David
+    [nonce: 874918] Alice wants to pay Charlie
+    [nonce: 518535] David wants to pay Alice
+    [nonce: 778265] David wants to pay Bob
+    [nonce: 190140] Bob wants to pay Alice
+    [nonce: 426952] Alice wants to pay Bob
+    [nonce: 295459] Alice wants to pay David
+    [nonce: 470865] David wants to pay Charlie
+    [nonce: 657807] David wants to pay Charlie
+    [nonce: 213733] Alice wants to pay Charlie
+    [nonce: 490602] Alice wants to pay Charlie
+    [nonce: 240795] Charlie wants to pay David
+    [nonce: 216121] David wants to pay Charlie
+    [nonce: 247611] Alice wants to pay Bob
+    [nonce: 580844] Charlie wants to pay David
+    [nonce: 216683] Alice wants to pay Charlie
+    [nonce: 835435] David wants to pay Alice
+    [nonce: 805346] Bob wants to pay David
+    [nonce: 382161] Charlie wants to pay David
+    [nonce: 611130] Charlie wants to pay Alice
+    [nonce: 784079] Bob wants to pay David
+    [nonce: 912297] David wants to pay Alice
+    [nonce: 28577] Bob wants to pay Charlie
+    [nonce: 129812] Alice wants to pay David
+    [nonce: 439627] Alice wants to pay Bob
+    [nonce: 159196] Bob wants to pay David
+    [nonce: 291592] Charlie wants to pay Bob
+    [nonce: 644657] Charlie wants to pay David
+    [nonce: 252996] Bob wants to pay David
+    [nonce: 653717] Bob wants to pay Charlie
+    [nonce: 81913] David wants to pay Alice
+    [nonce: 273915] Charlie wants to pay Alice
+    [nonce: 649679] David wants to pay Bob
+    [nonce: 278504] Alice wants to pay Bob
+    [nonce: 510256] David wants to pay Alice
+    [nonce: 247322] David wants to pay Alice
+    [nonce: 929089] David wants to pay Alice
+    [nonce: 529027] Charlie wants to pay Alice
+    [nonce: 600816] Alice wants to pay David
+    [nonce: 532650] David wants to pay Bob
+    [nonce: 187103] Charlie wants to pay Alice
+2024/05/26 07:16:25 node5
+    [nonce: 584090] Bob wants to pay David
+    [nonce: 949088] Bob wants to pay Alice
+    [nonce: 86844] David wants to pay Bob
+    [nonce: 500240] Bob wants to pay Alice
+    [nonce: 297453] David wants to pay Charlie
+    [nonce: 651145] Alice wants to pay Charlie
+    [nonce: 278980] Alice wants to pay Bob
+    [nonce: 688974] Bob wants to pay David
+    [nonce: 727831] David wants to pay Bob
+    [nonce: 694003] David wants to pay Bob
+    [nonce: 576197] Charlie wants to pay Alice
+    [nonce: 848354] David wants to pay Bob
+    [nonce: 20027] David wants to pay Bob
+    [nonce: 58686] Charlie wants to pay Alice
+    [nonce: 203910] Charlie wants to pay Alice
+    [nonce: 895590] Bob wants to pay David
+    [nonce: 877024] David wants to pay Alice
+    [nonce: 881678] Charlie wants to pay Alice
+    [nonce: 376666] Alice wants to pay David
+    [nonce: 778265] David wants to pay Bob
+    [nonce: 426952] Alice wants to pay Bob
+    [nonce: 874918] Alice wants to pay Charlie
+    [nonce: 518535] David wants to pay Alice
+    [nonce: 190140] Bob wants to pay Alice
+    [nonce: 295459] Alice wants to pay David
+    [nonce: 470865] David wants to pay Charlie
+    [nonce: 213733] Alice wants to pay Charlie
+    [nonce: 240795] Charlie wants to pay David
+    [nonce: 657807] David wants to pay Charlie
+    [nonce: 247611] Alice wants to pay Bob
+    [nonce: 216121] David wants to pay Charlie
+    [nonce: 490602] Alice wants to pay Charlie
+    [nonce: 580844] Charlie wants to pay David
+    [nonce: 216683] Alice wants to pay Charlie
+    [nonce: 835435] David wants to pay Alice
+    [nonce: 805346] Bob wants to pay David
+    [nonce: 382161] Charlie wants to pay David
+    [nonce: 611130] Charlie wants to pay Alice
+    [nonce: 784079] Bob wants to pay David
+    [nonce: 912297] David wants to pay Alice
+    [nonce: 28577] Bob wants to pay Charlie
+    [nonce: 129812] Alice wants to pay David
+    [nonce: 439627] Alice wants to pay Bob
+    [nonce: 159196] Bob wants to pay David
+    [nonce: 291592] Charlie wants to pay Bob
+    [nonce: 644657] Charlie wants to pay David
+    [nonce: 252996] Bob wants to pay David
+    [nonce: 653717] Bob wants to pay Charlie
+    [nonce: 81913] David wants to pay Alice
+    [nonce: 273915] Charlie wants to pay Alice
+    [nonce: 649679] David wants to pay Bob
+    [nonce: 278504] Alice wants to pay Bob
+    [nonce: 510256] David wants to pay Alice
+    [nonce: 247322] David wants to pay Alice
+    [nonce: 929089] David wants to pay Alice
+    [nonce: 529027] Charlie wants to pay Alice
+    [nonce: 600816] Alice wants to pay David
+    [nonce: 532650] David wants to pay Bob
