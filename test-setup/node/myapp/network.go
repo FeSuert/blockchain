@@ -125,11 +125,11 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 			address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
 			connectToPeer(node, peerID, address)
 
-			filePath := "./data/sorted_messages.txt"
+			filePath := "./data/blockchain.txt"
 			lines, _ := readAllLines(filePath)
 
 			for _, line := range lines {
-				SendMessage(node, address, line+"\n", "/transactions")
+				SendMessage(node, address, line+"\n", "/blockchain")
 			}
 		}
 	})

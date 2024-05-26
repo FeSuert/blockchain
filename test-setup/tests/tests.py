@@ -45,7 +45,7 @@ def check_outputs():
 if __name__ == '__main__':
     time.sleep(5)
     send_messages()
-    time.sleep(10)
+    time.sleep(20)
     if sys.argv[1] == 'tester1':
         check_outputs()
     else:

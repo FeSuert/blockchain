@@ -19,7 +19,7 @@ type ConsensusState struct {
 }
 
 func startConsensus(node host.Host, config Config, state *ConsensusState) {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
