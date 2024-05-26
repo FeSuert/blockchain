@@ -47,17 +47,17 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	var result []string
+	//var result []string
 
-	filePath := "./data/sorted_messages.txt"
+	filePath := "./data/blockchain.txt"
 	lines, _ := readAllLines(filePath)
 
-	for _, line := range lines {
-		parts := strings.SplitN(line, "|", 2)
-		result = append(result, parts[1])
-	}
+	// for _, line := range lines {
+	// 	parts := strings.SplitN(line, "|", 2)
+	// 	result = append(result, parts[1])
+	// }
 
-	return result, nil
+	return lines, nil
 }
 
 func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
