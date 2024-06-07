@@ -2,6 +2,9 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -14,7 +17,17 @@ import (
 
 type Message struct {
 	Time    time.Time `json:"time"`
-	Content string    `json:"content"`
+	Content TX        `json:"TX"`
+}
+
+type TX struct {
+	sender     string `json:"sender"`
+	nonce      int    `json:"nonce"`
+	to         string `json:"to"`
+	amount     int    `json:"amount"`
+	input      string `json:"input"`
+	signature  string `json:"signature"`
+	public_key string `json:"public_key"`
 }
 
 var fileMutex sync.Mutex
@@ -122,4 +135,29 @@ func removeTransaction(targetLine string) error {
 	}
 
 	return nil
+}
+
+func parseTransaction(line string) (TX, error) {
+	var tx TX
+	err := json.Unmarshal([]byte(line), &tx)
+	if err != nil {
+		return tx, err
+	}
+	return tx, nil
+
+}
+
+func checkSender(sender string, publicKey string) bool {
+	if strings.HasPrefix(publicKey, "0x") {
+		publicKey = publicKey[2:]
+	}
+	publicKeyBytes, err := hex.DecodeString(publicKey)
+	if err != nil {
+		fmt.Println("Error decoding public key:", err)
+		return false
+	}
+	hash := sha256.Sum256(publicKeyBytes)
+	derivedAddress := hash[:20]
+	derivedAddressHex := hex.EncodeToString(derivedAddress)
+	return derivedAddressHex == sender
 }

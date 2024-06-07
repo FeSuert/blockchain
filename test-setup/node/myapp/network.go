@@ -85,6 +85,7 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 			return
 		}
 		content := strings.TrimSpace(parts[1])
+		transaction, err := parseTransaction(content)
 		time, err := time.Parse(time.RFC3339, parts[0])
 		if err != nil {
 			fmt.Println("Error parsing time:", err)
@@ -93,7 +94,7 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 
 		message := Message{
 			Time:    time,
-			Content: content,
+			Content: transaction,
 		}
 
 		err = UpdateFile(message)

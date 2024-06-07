@@ -20,7 +20,12 @@ type JSONRPCServer struct {
 
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
 	time := time.Now()
-	msg := Message{Time: time, Content: message}
+	fmt.Println(message)
+	tx, err := parseTransaction(message)
+	if err != nil {
+		fmt.Println("Error parsing transaction:", err)
+	}
+	msg := Message{Time: time, Content: tx}
 
 	s.mux.Lock()
 	s.messages = append(s.messages, msg)
@@ -79,9 +84,14 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 
 		switch req.Method {
 		case "Node.Broadcast":
+			fmt.Println(req.Params)
 			if len(req.Params) > 0 {
-				if message, ok := req.Params[0].(string); ok {
-					result, rpcErr = s.Broadcast(message)
+				if paramMap, ok := req.Params[0].(map[string]interface{}); ok {
+					if message, err := json.Marshal(paramMap); err == nil {
+						result, rpcErr = s.Broadcast(string(message))
+					} else {
+						rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
+					}
 				} else {
 					rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
 				}
