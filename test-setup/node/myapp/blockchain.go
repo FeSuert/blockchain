@@ -108,6 +108,19 @@ func SaveBlock(block Block, state *ConsensusState, config Config, node host.Host
 		if err = removeTransaction(msg); err != nil {
 			fmt.Println("Error removing transaction:", err)
 		}
+		parts := strings.SplitN(msg, "|", 2)
+		tx, err := parseTransactionFromLine(parts[1])
+		if err != nil {
+			fmt.Println("Error parsing transaction:", err)
+		}
+		correct, err := checkTransaction(tx)
+		if err != nil {
+			fmt.Println("Error checking transaction:", err)
+		}
+		if correct {
+			//Update
+		}
+
 	}
 
 	if len(newLines) == 0 {

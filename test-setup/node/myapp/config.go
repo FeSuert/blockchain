@@ -15,13 +15,14 @@ import (
 )
 
 type Config struct {
-	Peers             []string `toml:"peers"`
-	RPCPort           int64    `toml:"rpc_port"`
-	SendPort          int64    `toml:"send_port"`
-	Miners            []string `toml:"miners"`
-	PrivateKey        string   `toml:"private_key"`
-	MinedBlockSize    int      `toml:"mined_block_size"`
-	LeaderProbability float64  `toml:"leader_probability"`
+	Peers             []string       `toml:"peers"`
+	RPCPort           int64          `toml:"rpc_port"`
+	SendPort          int64          `toml:"send_port"`
+	Miners            []string       `toml:"miners"`
+	PrivateKey        string         `toml:"private_key"`
+	MinedBlockSize    int            `toml:"mined_block_size"`
+	LeaderProbability float64        `toml:"leader_probability"`
+	Addresses         map[string]int `toml:"addresses"`
 }
 
 func loadConfig(configPath string, config *Config) error {

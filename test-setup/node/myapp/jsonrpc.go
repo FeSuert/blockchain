@@ -20,12 +20,13 @@ type JSONRPCServer struct {
 
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
 	time := time.Now()
-	fmt.Println(message)
-	tx, err := parseTransaction(message)
+	tx, err := parseTransactionFromJSON(message)
 	if err != nil {
 		fmt.Println("Error parsing transaction:", err)
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction format"}
 	}
 	msg := Message{Time: time, Content: tx}
+	fmt.Println("Sender after Parsing: " + tx.Sender)
 
 	s.mux.Lock()
 	s.messages = append(s.messages, msg)

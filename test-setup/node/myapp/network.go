@@ -78,14 +78,17 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
 		}
-
 		parts := strings.SplitN(receivedString, "|", 2)
 		if len(parts) != 2 {
 			fmt.Println("Invalid input format:", receivedString)
 			return
 		}
 		content := strings.TrimSpace(parts[1])
-		transaction, err := parseTransaction(content)
+		transaction, err := parseTransactionFromLine(content)
+		if err != nil {
+			fmt.Println("Error parsing transaction:", err)
+			return
+		}
 		time, err := time.Parse(time.RFC3339, parts[0])
 		if err != nil {
 			fmt.Println("Error parsing time:", err)
@@ -96,7 +99,7 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 			Time:    time,
 			Content: transaction,
 		}
-
+		fmt.Println("Sender in network received string:" + transaction.Sender)
 		err = UpdateFile(message)
 		if err != nil {
 			fmt.Println("Error updating file:", err)
@@ -179,28 +182,16 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 	node.SetStreamHandler("/blockchain", func(s network.Stream) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
-		receivedString = strings.TrimSpace(receivedString)
 		//fmt.Println("Received message:" + receivedString)
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
 			return
 		}
-
-		parts := strings.SplitN(receivedString, "/", 4)
-		if len(parts) != 4 {
-			return
-		}
-		currentID, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
-		prevID, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
-		leaderValue, _ := strconv.Atoi(strings.TrimSpace(parts[2]))
-		transactions := strings.Split(strings.TrimSpace(parts[3]), ", ")
-
-		receivedBlock := Block{
-			ID:           currentID,
-			PrevID:       prevID,
-			LeaderValue:  leaderValue,
-			Transactions: transactions,
-		}
+		receivedBlock, err := blockFromString(receivedString)
+		if err != nil {
+            fmt.Println("Error parsing block:", err)
+            return
+        }
 
 		state.CurrentBlockID, err = SaveBlock(receivedBlock, state, config, node)
 		if err != nil {
