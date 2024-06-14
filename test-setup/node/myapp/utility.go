@@ -49,9 +49,11 @@ func writeAllLines(filePath string, lines []string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
 	writer := bufio.NewWriter(file)
+
+	defer file.Close()
+
 	for _, line := range lines {
 		fmt.Fprintln(writer, line)
 	}
@@ -64,10 +66,12 @@ func readAllLines(filePath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
+
+	defer file.Close()
+
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}

@@ -62,12 +62,12 @@ func SendMessage(h host.Host, peerAddr, message string, protocol prt.ID) {
 		//fmt.Println("Error opening stream to peer:", peerInfo.ID, err)
 		return
 	}
-	defer stream.Close()
 
 	_, err = stream.Write([]byte(message))
 	if err != nil {
 		fmt.Println("Error sending message to peer:", peerInfo.ID, err)
 	}
+	defer stream.Close()
 }
 
 func initializeStreamHandlers(node host.Host, state *ConsensusState) {
@@ -86,7 +86,7 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 		content := strings.TrimSpace(parts[1])
 		transaction, err := parseTransactionFromLine(content)
 		if err != nil {
-			fmt.Println("Error parsing transaction:", err)
+			fmt.Println("Error parsing transaction NETWORK:", err, content)
 			return
 		}
 		time, err := time.Parse(time.RFC3339, parts[0])
@@ -189,9 +189,9 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 		}
 		receivedBlock, err := blockFromString(receivedString)
 		if err != nil {
-            fmt.Println("Error parsing block:", err)
-            return
-        }
+			fmt.Println("Error parsing block:", err)
+			return
+		}
 
 		state.CurrentBlockID, err = SaveBlock(receivedBlock, state, config, node)
 		if err != nil {

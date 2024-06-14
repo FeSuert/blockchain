@@ -102,16 +102,16 @@ func parseTransactionFromLine(line string) (TX, error) {
 	return tx, nil
 }
 
-func checkTransaction(transaction TX) (bool, error) {
+func validateTransaction(transaction TX) (bool, error) {
 	if !checkSender(transaction.Sender, transaction.PublicKey) {
 		return false, errors.New("invalid sender")
 	}
 	if !checkNonce(transaction.Sender, transaction.Nonce) {
 		return false, errors.New("used nonce")
 	}
-	if !checkAmount(transaction.Sender, transaction.Amount) {
-		return false, errors.New("insufficient funds")
-	}
+	// if !checkAmount(transaction.Sender, transaction.Amount) {
+	// 	return false, errors.New("insufficient funds")
+	// }
 	return true, nil
 }
 
@@ -140,7 +140,7 @@ func checkNonce(sender string, nonce int) bool {
 			parts := strings.SplitN(transaction, "|", 2)
 			tx, err := parseTransactionFromLine(parts[1])
 			if err != nil {
-				fmt.Println("Error parsing transaction:", err)
+				fmt.Println("Error parsing transaction TRANSACTION:", err)
 				return false
 			}
 			if tx.Sender == sender {

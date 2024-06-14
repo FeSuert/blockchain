@@ -156,7 +156,8 @@ if __name__ == '__main__':
     wait_for_consensus = 2  # timeout can be adjusted
 
     if sys.argv[1] == 'tester1':
-        tx = deploy_contract()
+        time.sleep(5)
+        #tx = deploy_contract()
     # time.sleep(wait_for_consensus)
     # if sys.argv[1] == 'tester1':
     #     contract = get_result(tx)['0']

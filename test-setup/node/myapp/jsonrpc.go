@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +19,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 	time := time.Now()
 	tx, err := parseTransactionFromJSON(message)
 	if err != nil {
-		fmt.Println("Error parsing transaction:", err)
+		fmt.Println("Error parsing transaction JSONRPC:", err)
 		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction format"}
 	}
 	msg := Message{Time: time, Content: tx}
@@ -32,20 +29,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 	s.messages = append(s.messages, msg)
 	s.mux.Unlock()
 
-	fmt.Println("Broadcasting:", msg)
 	UpdateFile(msg)
-
-	for _, peer := range config.Peers {
-		//fmt.Println("Sending message to peer", peer)
-		re := regexp.MustCompile(`\d+`)
-		id, _ := strconv.Atoi(re.FindString(peer))
-		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
-		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-		connectToPeer(node, peerID, address)
-		timeParts := strings.Split(time.String(), " ")
-		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
-		SendMessage(node, address, timeStr+"|"+message+"\n", "/transactions")
-	}
 
 	return nil, nil
 }

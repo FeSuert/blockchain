@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/cbergoon/merkletree"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
@@ -111,14 +112,21 @@ func SaveBlock(block Block, state *ConsensusState, config Config, node host.Host
 		parts := strings.SplitN(msg, "|", 2)
 		tx, err := parseTransactionFromLine(parts[1])
 		if err != nil {
-			fmt.Println("Error parsing transaction:", err)
+			fmt.Println("Error parsing transaction BLOCKCHAIN:", err)
 		}
-		correct, err := checkTransaction(tx)
+		correct, err := validateTransaction(tx)
 		if err != nil {
 			fmt.Println("Error checking transaction:", err)
 		}
 		if correct {
-			//Update
+			// Execute the transaction in the EVM
+			blockCtx := vm.BlockContext{}
+			txCtx := vm.TxContext{}
+			evm := initializeEVM(blockCtx, txCtx, stateDB)
+			_, err := executeTransaction(evm, tx)
+			if err != nil {
+				fmt.Println("Error executing transaction:", err)
+			}
 		}
 
 	}
