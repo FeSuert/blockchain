@@ -26,3 +26,5 @@ foreach ($directory in $directoriesToRemoveFilesFrom) {
         }
     }
 }
+Remove-Item -Path "C:\Users\edmun\Documents\blockchain\blockchain\test-setup\tests\contract.txt" -Force
+Remove-Item -Path "C:\Users\edmun\Documents\blockchain\blockchain\test-setup\tests\results.log" -Force
