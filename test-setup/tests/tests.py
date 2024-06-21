@@ -34,7 +34,7 @@ def int2bytes(i):
 
 def tx_bytes(tx):
     if 'to' in tx:
-        return (bytes.fromhex(tx['sender'])+
+        return (bytes.fromhex(tx['sender'][:2])+
                 int2bytes(tx['nonce'])+
                 bytes.fromhex(tx['to'][2:])+
                 (int2bytes(tx['amount']) if 'amount' in tx else b'')+
@@ -159,6 +159,7 @@ if __name__ == '__main__':
     time.sleep(wait_for_consensus)
     if sys.argv[1] == 'tester1':
         contract = get_result(tx)
+        print("Contract:{}", contract)
         contract = contract['0']
         logging.info(f'(TxResult:) created token contract at {contract}')
         with open('contract.txt', 'w') as f:

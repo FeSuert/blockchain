@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,22 +16,34 @@ type JSONRPCServer struct {
 	messages []Message
 }
 
-func (s *JSONRPCServer) TxResult(txHash string) (map[string]string, *jsonrpc.RPCError) {
+func (s *JSONRPCServer) TxResult(txHash string) (map[int]string, *jsonrpc.RPCError) {
 	lines, err := readAllLines("./data/tx_results.txt")
 	if err != nil {
 		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid readLine call"}
 	}
 	var txH, result string
 	for _, line := range lines {
-		_, err := fmt.Sscanf(line, "%s|%s", &txH, &result)
-		if err != nil {
-			fmt.Println("Error parsing tx result JSONRPC:", err)
-			return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction hash"}
+		parts := strings.Split(line, "|")
+
+		// Ensure the parts are as expected
+		if len(parts) != 2 {
+			fmt.Println("Error: expected 2 parts separated by '|'")
+			return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid tx result format"}
 		}
+
+		// Assign the split parts to the variables
+		txH = parts[0]
+		result = parts[1]
+
 		if txH == txHash {
-			return map[string]string{"result": result}, nil
+			// Create a map to hold the result in the required format
+			resultMap := map[int]string{
+				0: result,
+			}
+			return resultMap, nil
 		}
 	}
+
 	return nil, &jsonrpc.RPCError{Code: -32602, Message: "No such transaction"}
 }
 
