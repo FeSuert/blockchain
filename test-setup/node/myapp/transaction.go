@@ -45,8 +45,6 @@ func removeTransaction(targetLine string) error {
 		line = strings.TrimSpace(line)
 		if line != targetLine {
 			newLines = append(newLines, line)
-		} else {
-			//fmt.Println("Removing line:", targetLine)
 		}
 	}
 	err = writeAllLines(filePath, newLines)
@@ -74,7 +72,14 @@ func parseTransactionFromJSON(line string) (TX, error) {
 }
 
 func parseTransactionFromLine(line string) (TX, error) {
-	parts := strings.Split(line, ",")
+	var parts []string
+	if strings.Contains(line, "|") {
+		content := strings.Split(line, "|")
+		parts = strings.Split(content[1], ",")
+	}else{
+		parts = strings.Split(line, ",")
+	}
+
 	if len(parts) != 7 {
 		return TX{}, errors.New("invalid input line, expected 7 parts")
 	}

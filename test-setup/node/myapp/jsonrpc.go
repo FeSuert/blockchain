@@ -15,6 +15,26 @@ type JSONRPCServer struct {
 	messages []Message
 }
 
+func (s *JSONRPCServer) TxResult(txHash string) (interface{}, *jsonrpc.RPCError) {
+	lines, err := readAllLines("./data/tx_results.txt")
+	if err!= nil {
+        return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid readLine call"}
+    }
+	var txH, result string
+	for _, line := range lines {
+        _, err := fmt.Sscanf(line, "%s|%s", &txH, &result)
+		if err != nil {
+			fmt.Println("Error parsing tx result JSONRPC:", err)
+			return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction hash"}
+		}
+		if txH == txHash {
+			
+			return result, nil
+		}
+    }
+	return nil, &jsonrpc.RPCError{Code: -32602, Message: "No such transaction"}
+}
+
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
 	time := time.Now()
 	tx, err := parseTransactionFromJSON(message)
@@ -29,7 +49,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 	s.messages = append(s.messages, msg)
 	s.mux.Unlock()
 
-	UpdateFile(msg)
+	UpdateSortedMessages(msg)
 
 	return nil, nil
 }
@@ -48,6 +68,12 @@ func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	// }
 
 	return lines, nil
+}
+
+func (s *JSONRPCServer) HighestBlock() (interface{}, *jsonrpc.RPCError) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	return	state.CurrentBlockID, nil
 }
 
 func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
@@ -83,6 +109,18 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 			}
 		case "Node.QueryAll":
 			result, rpcErr = s.QueryAll()
+		case "Node.HighestBlock":
+			result, rpcErr = s.HighestBlock()
+		case "Node.TxResult":
+			fmt.Println("Req.Params:", req.Params)
+			if len(req.Params) > 0 {
+				if txHash, ok := req.Params[0].(string); ok {
+					fmt.Println(txHash)
+					result, rpcErr = s.TxResult(txHash)
+				} else {
+					rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
+				}
+			}
 		default:
 			rpcErr = &jsonrpc.RPCError{Code: -32601, Message: "Method not found"}
 		}
@@ -103,6 +141,7 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			fmt.Println("Error encoding response:", err)
 		}
+		fmt.Println("Response:",response)
 	}
 }
 

@@ -9,7 +9,7 @@ $directoriesToRemoveFilesFrom = @(
 )
 
 # Specify the names of the files you want to remove
-$filesToRemove = @("blockchain.txt", "sorted_messages.txt")
+$filesToRemove = @("blockchain.txt", "sorted_messages.txt", "tx_results.txt")
 
 # Loop through each directory
 foreach ($directory in $directoriesToRemoveFilesFrom) {

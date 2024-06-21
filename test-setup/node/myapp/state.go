@@ -15,8 +15,7 @@ import (
 )
 
 var (
-	stateDB *ethState.StateDB
-	db      ethdb.Database
+	db ethdb.Database
 )
 
 type AccountState struct {

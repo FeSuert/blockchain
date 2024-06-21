@@ -1,18 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	ethState "github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
@@ -27,19 +22,6 @@ type ConsensusState struct {
 func startConsensus(node host.Host, config Config, state *ConsensusState) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
-
-	// Initialize the state database (persistent)
-	db := rawdb.NewMemoryDatabase()
-	rootHash := common.Hash{}
-	stateDB, _ := ethState.New(rootHash, ethState.NewDatabase(db), nil)
-
-	// Initialize genesis accounts and balances
-	for addr, balance := range config.Addresses {
-		slicedHex := addr[2:]
-		address := common.HexToAddress(slicedHex)
-		stateDB.CreateAccount(address)
-		stateDB.SetBalance(address, uint256.MustFromBig(big.NewInt(int64(balance))), 0)
-	}
 
 	for range ticker.C {
 		// Read the current block ID from the blockchain file
@@ -85,14 +67,14 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 		// Collect transactions for the new block
 		blockTransactions := []string{}
 		for _, line := range lines[:config.MinedBlockSize] {
-			parts := strings.SplitN(line, "|", 2)
-			if len(parts) != 2 {
-				fmt.Println("Invalid transaction line format:", line)
-				continue
-			}
-			transactionData := parts[1]
+			// parts := strings.SplitN(line, "|", 2)
+			// if len(parts) != 2 {
+			// 	fmt.Println("Invalid transaction line format:", line)
+			// 	continue
+			// }
+			// transactionData := parts[1]
 			var tx TX
-			tx, err = parseTransactionFromLine(transactionData)
+			tx, err = parseTransactionFromLine(line)
 			if err != nil {
 				fmt.Println("Error parsing transaction CONSENSUS:", err)
 				continue
@@ -108,25 +90,12 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 				fmt.Println("Invalid transaction:", tx)
 				continue
 			}
-			// Execute the transaction in the EVM
-			blockCtx := vm.BlockContext{
-				Coinbase:    common.HexToAddress("0x0000000000000000000000000000000000000000"), // Default coinbase address
-				GasLimit:    10000000,                                                          // Default gas limit
-				BlockNumber: big.NewInt(0),
-			}
-
-			txCtx := vm.TxContext{
-				Origin:   common.HexToAddress("0x0000000000000000000000000000000000000000"), // Default origin address
-				GasPrice: big.NewInt(0),                                                     // Assuming no gas price for simplicity
-			}
-			evm := initializeEVM(blockCtx, txCtx, stateDB)
-			fmt.Println("1. Here")
-			_, err = executeTransaction(evm, tx)
-			fmt.Println("2. Here")
-			if err != nil {
-				fmt.Println("Error executing transaction:", err)
-				continue
-			}
+			// // Execute the transaction in the EVM
+			// _, err = executeTransaction(evm, tx)
+			// if err != nil {
+			// 	fmt.Println("Error executing transaction:", err)
+			// 	continue
+			// }
 
 			blockTransactions = append(blockTransactions, line)
 		}
@@ -170,7 +139,7 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 
 				// Save the new block to the blockchain and update the state
 				state.CurrentBlockID, err = SaveBlock(newBlock, state, config, node)
-				if err != nil {
+				if err != nil && err != errors.New("Block was already created or has higher LeaderValue") {
 					fmt.Println("Error saving block:", err)
 					continue
 				}

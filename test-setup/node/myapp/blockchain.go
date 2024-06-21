@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -10,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/cbergoon/merkletree"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
@@ -77,7 +77,7 @@ func SaveBlock(block Block, state *ConsensusState, config Config, node host.Host
 
 		if block.ID == existingID {
 			if block.LeaderValue > existingLeaderValue || block.LeaderValue == existingLeaderValue {
-				return state.CurrentBlockID, nil
+				return state.CurrentBlockID, errors.New("Block was already created or has higher LeaderValue")
 			} else {
 				break
 			}
@@ -86,6 +86,25 @@ func SaveBlock(block Block, state *ConsensusState, config Config, node host.Host
 	}
 
 	newLines = append(newLines, newLine)
+
+	for _, transaction := range block.Transactions {
+		tx, err := parseTransactionFromLine(transaction)
+		if err != nil {
+			return state.CurrentBlockID, err
+		}
+		result, err := executeTransaction(evm, tx)
+		if err != nil {
+			return state.CurrentBlockID, err
+		}
+		txHash := hashTransaction(&tx)
+		// fmt.Println("Result of executing Transaction:", result)
+		err = UpdateTXResults(txHash, result)
+		if err!= nil {
+            return state.CurrentBlockID, err
+        }
+
+		
+	}
 
 	for _, peer := range config.Peers {
 		re := regexp.MustCompile(`\d+`)
@@ -109,26 +128,6 @@ func SaveBlock(block Block, state *ConsensusState, config Config, node host.Host
 		if err = removeTransaction(msg); err != nil {
 			fmt.Println("Error removing transaction:", err)
 		}
-		parts := strings.SplitN(msg, "|", 2)
-		tx, err := parseTransactionFromLine(parts[1])
-		if err != nil {
-			fmt.Println("Error parsing transaction BLOCKCHAIN:", err)
-		}
-		correct, err := validateTransaction(tx)
-		if err != nil {
-			fmt.Println("Error checking transaction:", err)
-		}
-		if correct {
-			// Execute the transaction in the EVM
-			blockCtx := vm.BlockContext{}
-			txCtx := vm.TxContext{}
-			evm := initializeEVM(blockCtx, txCtx, stateDB)
-			_, err := executeTransaction(evm, tx)
-			if err != nil {
-				fmt.Println("Error executing transaction:", err)
-			}
-		}
-
 	}
 
 	if len(newLines) == 0 {

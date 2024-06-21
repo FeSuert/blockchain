@@ -10,6 +10,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"math/big"
+	"log"
+	"encoding/hex"
+	"crypto/sha256"
 )
 
 var fileMutex sync.Mutex
@@ -27,7 +31,7 @@ func blockFromString(str string) (Block, error) {
 	str = strings.TrimSpace(str)
 	parts := strings.SplitN(str, "/", 4)
 	if len(parts) != 4 {
-		return Block{}, fmt.Errorf("Invalid block string: %s", str)
+		return Block{}, fmt.Errorf("invalid block string: %s", str)
 	}
 
 	currentID, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
@@ -83,7 +87,7 @@ func readAllLines(filePath string) ([]string, error) {
 	return lines, nil
 }
 
-func UpdateFile(message Message) error {
+func UpdateSortedMessages(message Message) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -121,4 +125,62 @@ func UpdateFile(message Message) error {
 	})
 
 	return writeAllLines(filePath, lines)
+}
+
+func UpdateTXResults(txHash, result string) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
+
+	filePath := "./data/tx_results.txt"
+	lines, err := readAllLines(filePath)
+	if err != nil {
+		return err
+	}
+	newLine := fmt.Sprintf("%s|%s", txHash, result)
+
+	for _, line := range lines {
+		if line == newLine {
+			fmt.Println("Duplicate message found, skipping:", newLine)
+			return nil
+		}
+	}
+
+	lines = append(lines, newLine)
+	return writeAllLines(filePath, lines)
+}
+
+func int2bytes(i int) []byte {
+	bi := big.NewInt(int64(i))
+	return bi.Bytes()
+}
+
+func hexDecode(input string) []byte {
+	if input[0:2] == "0x" {
+		input = input[2:]
+	}
+	decoded, err := hex.DecodeString(input)
+	if err != nil {
+		fmt.Println("Input Error String:", input)
+		log.Fatalf("failed to decode hex string: %v", err)
+	}
+	return decoded
+}
+
+func hashTransaction(tx *TX) string {
+	data := txBytes(*tx)
+	hash := sha256.Sum256(data)
+	txHash := hash[:]
+	return "0x" + hex.EncodeToString(txHash)
+}
+
+func txBytes(tx TX) []byte {
+	var data []byte
+	data = append(data, hexDecode(tx.Sender)...)
+	data = append(data, int2bytes(tx.Nonce)...)
+	if tx.To != "" {
+		data = append(data, hexDecode(tx.To)...)
+		data = append(data, int2bytes(tx.Amount)...)
+	}
+	data = append(data, hexDecode(tx.Input)...)
+	return data
 }

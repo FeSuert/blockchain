@@ -99,8 +99,8 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 			Time:    time,
 			Content: transaction,
 		}
-		fmt.Println("Sender in network received string:" + transaction.Sender)
-		err = UpdateFile(message)
+		// fmt.Println("Sender in network received string:" + transaction.Sender)
+		err = UpdateSortedMessages(message)
 		if err != nil {
 			fmt.Println("Error updating file:", err)
 			return
@@ -141,7 +141,7 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 		reader := bufio.NewReader(s)
 		receivedString, err := reader.ReadString('\n')
 		receivedString = strings.TrimSpace(receivedString)
-		fmt.Println("Received message:" + receivedString + " Current leader Value:" + strconv.Itoa(state.ReceivedMinLeaderValue))
+		// fmt.Println("Received message:" + receivedString + " Current leader Value:" + strconv.Itoa(state.ReceivedMinLeaderValue))
 		if err != nil {
 			fmt.Println("Error reading incoming string:", err)
 			return
@@ -192,7 +192,6 @@ func initializeStreamHandlers(node host.Host, state *ConsensusState) {
 			fmt.Println("Error parsing block:", err)
 			return
 		}
-
 		state.CurrentBlockID, err = SaveBlock(receivedBlock, state, config, node)
 		if err != nil {
 			return

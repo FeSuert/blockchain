@@ -153,34 +153,30 @@ def check_outputs(contract_address):
 
 
 if __name__ == '__main__':
-    wait_for_consensus = 2  # timeout can be adjusted
+    wait_for_consensus = 30  # timeout can be adjusted
 
     if sys.argv[1] == 'tester1':
-        time.sleep(5)
         tx = deploy_contract()
-    # time.sleep(wait_for_consensus)
-    # if sys.argv[1] == 'tester1':
-    #     contract = get_result(tx)['0']
-    #     logging.info(f'(TxResult:) created token contract at {contract}')
-    #     with open('contract.txt', 'w') as f:
-    #         f.write(contract)
-    #     mint_tokens(contract)
-    # time.sleep(wait_for_consensus)
+    time.sleep(wait_for_consensus)
+    if sys.argv[1] == 'tester1':
+        contract = get_result(tx)['0']
+        logging.info(f'(TxResult:) created token contract at {contract}')
+        with open('contract.txt', 'w') as f:
+            f.write(contract)
+        mint_tokens(contract)
+    time.sleep(wait_for_consensus)
 
-    # if sys.argv[1] != 'tester1':
-    #     while True:
-    #         try:
-    #             with open('contract.txt', 'r') as f:
-    #                 contract = f.read()
-    #             break
-    #         except FileNotFoundError:
-    #             time.sleep(1)
-    # send_transfers(contract)
-    # time.sleep(wait_for_consensus)
+    if sys.argv[1] != 'tester1':
+        while True:
+            try:
+                with open('contract.txt', 'r') as f:
+                    contract = f.read()
+                break
+            except FileNotFoundError:
+                time.sleep(1)
+    send_transfers(contract)
+    time.sleep(wait_for_consensus)
 
-    # if sys.argv[1] == 'tester1':
-    #     check_outputs(contract)
-    #     os.remove('contract.txt')
-    # else:
-    #     # make sure tester1 exits first
-    #     time.sleep(60)
+    if sys.argv[1] == 'tester1':
+        check_outputs(contract)
+        os.remove('contract.txt')
