@@ -110,8 +110,9 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 			}
 			// Execute the transaction in the EVM
 			blockCtx := vm.BlockContext{
-				Coinbase: common.HexToAddress("0x0000000000000000000000000000000000000000"), // Default coinbase address
-				GasLimit: 10000000,                                                          // Default gas limit
+				Coinbase:    common.HexToAddress("0x0000000000000000000000000000000000000000"), // Default coinbase address
+				GasLimit:    10000000,                                                          // Default gas limit
+				BlockNumber: big.NewInt(0),
 			}
 
 			txCtx := vm.TxContext{

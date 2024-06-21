@@ -12,7 +12,35 @@ import (
 )
 
 func initializeEVM(blockCtx vm.BlockContext, txCtx vm.TxContext, stateDB *ethState.StateDB) *vm.EVM {
-	chainConfig := params.MainnetChainConfig
+	// Set up the chain configuration with the necessary updates
+	var (
+		shanghaiTime = uint64(0)
+		cancunTime   = uint64(0)
+	)
+	chainConfig := &params.ChainConfig{
+		ChainID:                       big.NewInt(1),
+		HomesteadBlock:                new(big.Int),
+		DAOForkBlock:                  new(big.Int),
+		DAOForkSupport:                false,
+		EIP150Block:                   new(big.Int),
+		EIP155Block:                   new(big.Int),
+		EIP158Block:                   new(big.Int),
+		ByzantiumBlock:                new(big.Int),
+		ConstantinopleBlock:           new(big.Int),
+		PetersburgBlock:               new(big.Int),
+		IstanbulBlock:                 new(big.Int),
+		MuirGlacierBlock:              new(big.Int),
+		BerlinBlock:                   new(big.Int),
+		LondonBlock:                   new(big.Int),
+		ArrowGlacierBlock:             nil,
+		GrayGlacierBlock:              nil,
+		TerminalTotalDifficulty:       big.NewInt(0),
+		TerminalTotalDifficultyPassed: true,
+		MergeNetsplitBlock:            nil,
+		ShanghaiTime:                  &shanghaiTime,
+		CancunTime:                    &cancunTime,
+	}
+
 	evmConfig := vm.Config{}
 
 	// Assign the myCanTransfer and myTransfer functions
@@ -101,7 +129,7 @@ func executeTransaction(evm *vm.EVM, tx TX) ([]byte, error) {
 			fmt.Printf("Create call failed: %v\n", err)
 			return nil, fmt.Errorf("EVM create error: %v", err)
 		}
-		fmt.Println("4. EVM Here")
+		fmt.Println("Contract Address:", contractAddr)
 		return contractAddr.Bytes(), nil
 	} else {
 		// Convert recipient address

@@ -43,7 +43,7 @@ def tx_bytes(tx):
     else:
         return (bytes.fromhex(tx['sender'][2:])+
                 int2bytes(tx['nonce'])+
-                int2bytes(tx['amount'])+
+                #int2bytes(tx['amount'])+
                 bytes.fromhex(tx['input']))
 
 
@@ -73,7 +73,7 @@ def deploy_contract():
     global nonce
     tx = {'sender': alice['address'][2:],
           'nonce': nonce,
-          'amount': int(1e6),
+          #'amount': int(1e6),
           'input': erc20token, }
     nonce = nonce+1
     tx_hash = hash_and_sign(tx, alice)
@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
     if sys.argv[1] == 'tester1':
         time.sleep(5)
-        #tx = deploy_contract()
+        tx = deploy_contract()
     # time.sleep(wait_for_consensus)
     # if sys.argv[1] == 'tester1':
     #     contract = get_result(tx)['0']
