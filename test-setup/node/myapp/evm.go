@@ -107,7 +107,7 @@ func executeTransaction(evm *vm.EVM, tx TX) (string, error) {
 
 		// Debugging: Check balance of caller
 		callerBalance := evm.StateDB.GetBalance(caller.Address())
-		// fmt.Printf("Caller balance: %+v\n", callerBalance)
+		fmt.Printf("Caller balance: %+v\n", callerBalance)
 
 		// Create the contract in the EVM
 		// fmt.Println("3. EVM Here")

@@ -30,22 +30,21 @@ erc20token = '6101606040523480156200001257600080fd5b506040518060400160405280600c
 nonce = 0
 
 def int2bytes(i):
-    return i.to_bytes(math.ceil(i.bit_length() / 8), byteorder='big', signed=False)
-
+    return i.to_bytes((i.bit_length() + 7) // 8, byteorder='big')
 
 def tx_bytes(tx):
     if 'to' in tx:
-        return (bytes.fromhex(tx['sender'][2:])+
+        return (bytes.fromhex(tx['sender'])+
                 int2bytes(tx['nonce'])+
                 bytes.fromhex(tx['to'][2:])+
-                int2bytes(tx['amount'])+
+                (int2bytes(tx['amount']) if 'amount' in tx else b'')+
                 bytes.fromhex(tx['input']))
     else:
-        return (bytes.fromhex(tx['sender'][2:])+
+        return (bytes.fromhex(tx['sender'])+
                 int2bytes(tx['nonce'])+
-                #int2bytes(tx['amount'])+
+                (int2bytes(tx['amount']) if 'amount' in tx else b'')+ 
                 bytes.fromhex(tx['input']))
-
+    #print(f"P Input Bytes: {input_bytes.hex()}")
 
 def hash_and_sign(tx, signer):
     sk = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(signer['private_key'][2:]))
@@ -53,9 +52,9 @@ def hash_and_sign(tx, signer):
     sha256 = hashes.Hash(hashes.SHA256())
     sha256.update(data)
     tx_hash = sha256.finalize()
-    tx['signature'] = '0x'+sk.sign(tx_hash).hex()
+    tx['signature'] = '0x' + sk.sign(tx_hash).hex()
     tx['public_key'] = signer['public_key']
-    return '0x'+tx_hash.hex()
+    return '0x' + tx_hash.hex()
 
 
 def rpc(url, method, arg):
@@ -159,7 +158,8 @@ if __name__ == '__main__':
         tx = deploy_contract()
     time.sleep(wait_for_consensus)
     if sys.argv[1] == 'tester1':
-        contract = get_result(tx)['0']
+        contract = get_result(tx)
+        contract = contract['0']
         logging.info(f'(TxResult:) created token contract at {contract}')
         with open('contract.txt', 'w') as f:
             f.write(contract)

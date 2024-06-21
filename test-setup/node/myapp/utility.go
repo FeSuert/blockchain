@@ -2,7 +2,11 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"log"
+	"math/big"
 	"os"
 	"regexp"
 	"sort"
@@ -10,10 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"math/big"
-	"log"
-	"encoding/hex"
-	"crypto/sha256"
 )
 
 var fileMutex sync.Mutex
@@ -155,7 +155,7 @@ func int2bytes(i int) []byte {
 }
 
 func hexDecode(input string) []byte {
-	if input[0:2] == "0x" {
+	if len(input) >= 2 && input[0:2] == "0x" {
 		input = input[2:]
 	}
 	decoded, err := hex.DecodeString(input)
@@ -166,21 +166,34 @@ func hexDecode(input string) []byte {
 	return decoded
 }
 
+func txBytes(tx TX) []byte {
+	var data []byte
+	senderBytes := hexDecode(tx.Sender)
+	nonceBytes := int2bytes(tx.Nonce)
+	toBytes := hexDecode(tx.To)
+	amountBytes := int2bytes(tx.Amount)
+	inputBytes := hexDecode(tx.Input)
+
+	fmt.Printf("Go Sender Bytes: %x\n", senderBytes)
+	fmt.Printf("Go Nonce Bytes: %x\n", nonceBytes)
+	fmt.Printf("Go To Bytes: %x\n", toBytes)
+	fmt.Printf("Go Amount Bytes: %x\n", amountBytes)
+	//fmt.Printf("Go Input Bytes: %x\n", inputBytes)
+
+	data = append(data, senderBytes...)
+	data = append(data, nonceBytes...)
+	if tx.To != "" {
+		data = append(data, toBytes...)
+		data = append(data, amountBytes...)
+	}
+	data = append(data, inputBytes...)
+	return data
+}
+
 func hashTransaction(tx *TX) string {
 	data := txBytes(*tx)
+
 	hash := sha256.Sum256(data)
 	txHash := hash[:]
 	return "0x" + hex.EncodeToString(txHash)
-}
-
-func txBytes(tx TX) []byte {
-	var data []byte
-	data = append(data, hexDecode(tx.Sender)...)
-	data = append(data, int2bytes(tx.Nonce)...)
-	if tx.To != "" {
-		data = append(data, hexDecode(tx.To)...)
-		data = append(data, int2bytes(tx.Amount)...)
-	}
-	data = append(data, hexDecode(tx.Input)...)
-	return data
 }
