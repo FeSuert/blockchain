@@ -34,7 +34,7 @@ def int2bytes(i):
 
 def tx_bytes(tx):
     if 'to' in tx:
-        return (bytes.fromhex(tx['sender'][:2])+
+        return (bytes.fromhex(tx['sender'])+
                 int2bytes(tx['nonce'])+
                 bytes.fromhex(tx['to'][2:])+
                 (int2bytes(tx['amount']) if 'amount' in tx else b'')+
@@ -98,6 +98,7 @@ def mint_tokens(contract_address):
               'input': f'40c10f19{12*"00"}{payee["address"][2:]}{10000:064x}', }
         nonce = nonce+1
         hash_and_sign(tx, alice)
+        print("Minted Transaction:" + tx['sender'])
         url = f'http://node{random.choice(range(1, n+1))}:{rpc_port}/rpc'
         rpc(url, 'Node.Broadcast', [tx])
 
