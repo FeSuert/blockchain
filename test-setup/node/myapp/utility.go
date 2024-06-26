@@ -174,10 +174,10 @@ func txBytes(tx TX) []byte {
 	amountBytes := int2bytes(tx.Amount)
 	inputBytes := hexDecode(tx.Input)
 
-	fmt.Printf("Go Sender Bytes: %x\n", senderBytes)
-	fmt.Printf("Go Nonce Bytes: %x\n", nonceBytes)
-	fmt.Printf("Go To Bytes: %x\n", toBytes)
-	fmt.Printf("Go Amount Bytes: %x\n", amountBytes)
+	//fmt.Printf("Go Sender Bytes: %x\n", senderBytes)
+	//fmt.Printf("Go Nonce Bytes: %x\n", nonceBytes)
+	//fmt.Printf("Go To Bytes: %x\n", toBytes)
+	//fmt.Printf("Go Amount Bytes: %x\n", amountBytes)
 	//fmt.Printf("Go Input Bytes: %x\n", inputBytes)
 
 	data = append(data, senderBytes...)

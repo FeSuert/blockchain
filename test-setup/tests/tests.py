@@ -34,6 +34,8 @@ def int2bytes(i):
 
 def tx_bytes(tx):
     if 'to' in tx:
+        print(tx['sender'])
+        print(bytes.fromhex(tx['sender']))
         return (bytes.fromhex(tx['sender'])+
                 int2bytes(tx['nonce'])+
                 bytes.fromhex(tx['to'][2:])+
@@ -118,7 +120,7 @@ def send_transfers(contract_address):
         payee_address = random.choice(others)
         tokens = random.choice(range(1, 501))
         # call transfer
-        tx = {'sender': payer['address'],
+        tx = {'sender': payer['address'][2:],
               'nonce': nonce,
               'to': contract_address,
               'amount': int(1e6),
@@ -153,7 +155,7 @@ def check_outputs(contract_address):
 
 
 if __name__ == '__main__':
-    wait_for_consensus = 30  # timeout can be adjusted
+    wait_for_consensus = 60  # timeout can be adjusted
 
     if sys.argv[1] == 'tester1':
         tx = deploy_contract()

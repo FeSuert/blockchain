@@ -106,8 +106,8 @@ func executeTransaction(evm *vm.EVM, tx TX) (string, error) {
 		}
 
 		// Debugging: Check balance of caller
-		callerBalance := evm.StateDB.GetBalance(caller.Address())
-		fmt.Printf("Caller balance: %+v\n", callerBalance)
+		// callerBalance := evm.StateDB.GetBalance(caller.Address())
+		// fmt.Printf("Caller balance: %+v\n", callerBalance)
 
 		// Create the contract in the EVM
 		// fmt.Println("3. EVM Here")
@@ -145,18 +145,20 @@ func executeTransaction(evm *vm.EVM, tx TX) (string, error) {
 		}
 
 		// Debugging: Print all values before the call
-		// fmt.Printf("EVM: %+v\n", evm)
-		// fmt.Printf("Caller: %+v\n", caller)
-		// fmt.Printf("ToAddr: %+v\n", toAddr)
-		// fmt.Printf("Input: %x\n", input)
-		// fmt.Printf("Gas: %d\n", uint64(1000000))
-		// fmt.Printf("Value: %+v\n", value)
+		fmt.Printf("EVM: %+v\n", evm)
+		fmt.Printf("Caller: %+v\n", caller)
+		fmt.Printf("ToAddr: %+v\n", toAddr)
+		fmt.Printf("Input: %x\n", input)
+		fmt.Printf("Gas: %d\n", uint64(1000000))
+		fmt.Printf("Value: %+v\n", value)
 
 		// Execute the transaction in the EVM
 		ret, _, err := evm.Call(caller, toAddr, input, uint64(1000000), value)
 		if err != nil {
 			return "", fmt.Errorf("EVM call error: %v", err)
 		}
+		fmt.Println("Return Value:", ret)
+		fmt.Println("Return Value as HEX:", common.Bytes2Hex(ret))
 		return common.Bytes2Hex(ret), nil
 	}
 }

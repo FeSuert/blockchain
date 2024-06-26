@@ -8,6 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/holiman/uint256"
 	"github.com/ybbus/jsonrpc"
 )
 
@@ -55,7 +58,7 @@ func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCErro
 		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction format"}
 	}
 	msg := Message{Time: time, Content: tx}
-	fmt.Println("Sender after Parsing: " + tx.Sender)
+	//fmt.Println("Sender after Parsing: " + tx.Sender)
 
 	s.mux.Lock()
 	s.messages = append(s.messages, msg)
@@ -88,6 +91,25 @@ func (s *JSONRPCServer) HighestBlock() (interface{}, *jsonrpc.RPCError) {
 	return state.CurrentBlockID, nil
 }
 
+func (s *JSONRPCServer) QueryAddress(message string) (interface{}, *jsonrpc.RPCError) {
+	tx, err := parseTransactionFromJSON(message)
+	if err != nil {
+		fmt.Println("Error parsing transaction JSONRPC:", err)
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction format"}
+	}
+
+	// Execute the call
+	caller := vm.AccountRef(common.HexToAddress(tx.Sender))
+	toAddr := common.HexToAddress(tx.To)
+	data := common.FromHex(tx.Input)
+
+	result, _, err := evm.Call(caller, toAddr, data, uint64(0), new(uint256.Int))
+	if err != nil {
+		return nil, &jsonrpc.RPCError{Code: -32000, Message: fmt.Sprintf("EVM call error: %v", err)}
+	}
+	return common.Bytes2Hex(result), nil
+}
+
 func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -107,7 +129,7 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 
 		switch req.Method {
 		case "Node.Broadcast":
-			fmt.Println(req.Params)
+			// fmt.Println(req.Params)
 			if len(req.Params) > 0 {
 				if paramMap, ok := req.Params[0].(map[string]interface{}); ok {
 					if message, err := json.Marshal(paramMap); err == nil {
@@ -123,9 +145,11 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 			result, rpcErr = s.QueryAll()
 		case "Node.HighestBlock":
 			result, rpcErr = s.HighestBlock()
+		case "Node.QueryAddress":
+			result, rpcErr = s.QueryAddress(req.Params[0].(string))
 		case "Node.TxResult":
 			result, rpcErr = s.TxResult(req.Params[0].(string))
-			fmt.Println("Req.Params:", req.Params)
+			// fmt.Println("Req.Params:", req.Params)
 		default:
 			rpcErr = &jsonrpc.RPCError{Code: -32601, Message: "Method not found"}
 		}
@@ -146,7 +170,7 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			fmt.Println("Error encoding response:", err)
 		}
-		fmt.Println("Response:", response)
+		//fmt.Println("Response:", response)
 	}
 }
 
