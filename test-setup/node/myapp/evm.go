@@ -41,7 +41,72 @@ func initializeEVM(blockCtx vm.BlockContext, txCtx vm.TxContext, stateDB *ethSta
 		CancunTime:                    &cancunTime,
 	}
 
-	evmConfig := vm.Config{}
+	// hooks := &tracing.Hooks{
+	// 	OnTxStart: func(vm *tracing.VMContext, tx *types.Transaction, from common.Address) {
+	// 		fmt.Printf("TxStart Hook: VM=%+v, Tx=%+v, From=%s\n", vm, tx, from.Hex())
+	// 	},
+	// 	OnTxEnd: func(receipt *types.Receipt, err error) {
+	// 		fmt.Printf("TxEnd Hook: Receipt=%+v, Error=%v\n", receipt, err)
+	// 	},
+	// 	OnEnter: func(depth int, typ byte, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
+	// 		fmt.Printf("Enter Hook: Depth=%d, Type=%d, From=%s, To=%s, Input=%x, Gas=%d, Value=%s\n", depth, typ, from.Hex(), to.Hex(), input, gas, value.String())
+	// 	},
+	// 	OnExit: func(depth int, output []byte, gasUsed uint64, err error, reverted bool) {
+	// 		fmt.Printf("Exit Hook: Depth=%d, Output=%x, GasUsed=%d, Error=%v, Reverted=%t\n", depth, output, gasUsed, err, reverted)
+	// 	},
+	// 	OnOpcode: func(pc uint64, op byte, gas uint64, cost uint64, scope tracing.OpContext, rData []byte, depth int, err error) {
+	// 		fmt.Printf("Opcode Hook: PC=%d, OpCode=%x, Gas=%d, Cost=%d, Depth=%d, Error=%v\n", pc, op, gas, cost, depth, err)
+	// 	},
+	// 	OnFault: func(pc uint64, op byte, gas, cost uint64, scope tracing.OpContext, depth int, err error) {
+	// 		fmt.Printf("Fault Hook: PC=%d, OpCode=%x, Gas=%d, Cost=%d, Depth=%d, Error=%v\n", pc, op, gas, cost, depth, err)
+	// 	},
+	// 	OnGasChange: func(old, new uint64, reason tracing.GasChangeReason) {
+	// 		fmt.Printf("Gas Change Hook: Old=%d, New=%d, Reason=%s\n", old, new, reason)
+	// 	},
+	// 	OnBlockchainInit: func(chainConfig *params.ChainConfig) {
+	// 		fmt.Printf("Blockchain Init Hook: ChainConfig=%+v\n", chainConfig)
+	// 	},
+	// 	OnClose: func() {
+	// 		fmt.Println("Close Hook")
+	// 	},
+	// 	OnBlockStart: func(event tracing.BlockEvent) {
+	// 		fmt.Printf("Block Start Hook: Event=%+v\n", event)
+	// 	},
+	// 	OnBlockEnd: func(err error) {
+	// 		fmt.Printf("Block End Hook: Error=%v\n", err)
+	// 	},
+	// 	OnSkippedBlock: func(event tracing.BlockEvent) {
+	// 		fmt.Printf("Skipped Block Hook: Event=%+v\n", event)
+	// 	},
+	// 	OnGenesisBlock: func(genesis *types.Block, alloc types.GenesisAlloc) {
+	// 		fmt.Printf("Genesis Block Hook: Block=%+v, Alloc=%+v\n", genesis, alloc)
+	// 	},
+	// 	OnSystemCallStart: func() {
+	// 		fmt.Println("System Call Start Hook")
+	// 	},
+	// 	OnSystemCallEnd: func() {
+	// 		fmt.Println("System Call End Hook")
+	// 	},
+	// 	OnBalanceChange: func(addr common.Address, prev, new *big.Int, reason tracing.BalanceChangeReason) {
+	// 		fmt.Printf("Balance Change Hook: Address=%s, Previous=%s, New=%s, Reason=%s\n", addr.Hex(), prev.String(), new.String(), reason.String())
+	// 	},
+	// 	OnNonceChange: func(addr common.Address, prev, new uint64) {
+	// 		fmt.Printf("Nonce Change Hook: Address=%s, Previous=%d, New=%d\n", addr.Hex(), prev, new)
+	// 	},
+	// 	OnCodeChange: func(addr common.Address, prevCodeHash common.Hash, prevCode []byte, codeHash common.Hash, code []byte) {
+	// 		fmt.Printf("Code Change Hook: Address=%s, PreviousCodeHash=%x, PreviousCode=%x, CodeHash=%x, Code=%x\n", addr.Hex(), prevCodeHash, prevCode, codeHash, code)
+	// 	},
+	// 	OnStorageChange: func(addr common.Address, slot common.Hash, prev, new common.Hash) {
+	// 		fmt.Printf("Storage Change Hook: Address=%s, Slot=%x, Previous=%x, New=%x\n", addr.Hex(), slot, prev, new)
+	// 	},
+	// 	OnLog: func(log *types.Log) {
+	// 		fmt.Printf("Log Hook: Log=%+v\n", log)
+	// 	},
+	// }
+
+	evmConfig := vm.Config{
+		//Tracer: hooks,
+	}
 
 	// Assign the myCanTransfer and myTransfer functions
 	blockCtx.CanTransfer = myCanTransfer
@@ -106,8 +171,8 @@ func executeTransaction(evm *vm.EVM, tx TX) (string, error) {
 		}
 
 		// Debugging: Check balance of caller
-		// callerBalance := evm.StateDB.GetBalance(caller.Address())
-		// fmt.Printf("Caller balance: %+v\n", callerBalance)
+		callerBalance := evm.StateDB.GetBalance(caller.Address())
+		fmt.Printf("Caller balance: %+v\n", callerBalance)
 
 		// Create the contract in the EVM
 		// fmt.Println("3. EVM Here")
@@ -153,7 +218,7 @@ func executeTransaction(evm *vm.EVM, tx TX) (string, error) {
 		fmt.Printf("Value: %+v\n", value)
 
 		// Execute the transaction in the EVM
-		ret, _, err := evm.Call(caller, toAddr, input, uint64(1000000), value)
+		ret, _, err := evm.Call(caller, toAddr, input, uint64(1000000), uint256.NewInt(0))
 		if err != nil {
 			return "", fmt.Errorf("EVM call error: %v", err)
 		}

@@ -91,19 +91,35 @@ func (s *JSONRPCServer) HighestBlock() (interface{}, *jsonrpc.RPCError) {
 	return state.CurrentBlockID, nil
 }
 
-func (s *JSONRPCServer) QueryAddress(message string) (interface{}, *jsonrpc.RPCError) {
-	tx, err := parseTransactionFromJSON(message)
-	if err != nil {
-		fmt.Println("Error parsing transaction JSONRPC:", err)
-		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction format"}
+func (s *JSONRPCServer) QueryAddress(params []interface{}) (interface{}, *jsonrpc.RPCError) {
+	if len(params) != 1 {
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
+	}
+	paramMap, ok := params[0].(map[string]interface{})
+	if !ok {
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid param format"}
 	}
 
-	// Execute the call
-	caller := vm.AccountRef(common.HexToAddress(tx.Sender))
-	toAddr := common.HexToAddress(tx.To)
-	data := common.FromHex(tx.Input)
+	to, toOk := paramMap["to"].(string)
+	input, inputOk := paramMap["input"].(string)
+	sender, senderOk := paramMap["sender"].(string)
+	if !toOk || !senderOk {
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Fields 'to' and 'sender' are required"}
+	}
 
-	result, _, err := evm.Call(caller, toAddr, data, uint64(0), new(uint256.Int))
+	// Handle balance query if input is not provided
+	if !inputOk {
+		address := common.HexToAddress(to)
+		balance := evm.StateDB.GetBalance(address)
+		return balance.String(), nil
+	}
+
+	// Handle smart contract call
+	caller := vm.AccountRef(common.HexToAddress(sender))
+	toAddr := common.HexToAddress(to)
+	data := common.FromHex(input)
+
+	result, _, err := evm.Call(caller, toAddr, data, uint64(1000000), new(uint256.Int))
 	if err != nil {
 		return nil, &jsonrpc.RPCError{Code: -32000, Message: fmt.Sprintf("EVM call error: %v", err)}
 	}
@@ -146,7 +162,7 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 		case "Node.HighestBlock":
 			result, rpcErr = s.HighestBlock()
 		case "Node.QueryAddress":
-			result, rpcErr = s.QueryAddress(req.Params[0].(string))
+			result, rpcErr = s.QueryAddress(req.Params)
 		case "Node.TxResult":
 			result, rpcErr = s.TxResult(req.Params[0].(string))
 			// fmt.Println("Req.Params:", req.Params)

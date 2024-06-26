@@ -141,7 +141,9 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 				state.CurrentBlockID, err = SaveBlock(newBlock, state, config, node)
 				if err != nil && err != errors.New("Block was already created or has higher LeaderValue") {
 					fmt.Println("Error saving block:", err)
-					continue
+					for _, transaction := range blockTransactions {
+						removeTransaction(transaction)
+					}
 				}
 
 				// Broadcast the new block to all peers
