@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -86,9 +87,28 @@ func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 }
 
 func (s *JSONRPCServer) HighestBlock() (interface{}, *jsonrpc.RPCError) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
-	return state.CurrentBlockID, nil
+	var result int
+	blockchainFilePath := "./data/blockchain.txt"
+	blockchainLines, err := readAllLines(blockchainFilePath)
+	if err != nil {
+		fmt.Println("Error reading blockchain file:", err)
+	}
+	if len(blockchainLines) > 0 {
+		lastLine := blockchainLines[len(blockchainLines)-1]
+		parts := strings.SplitN(lastLine, "/", 4)
+		if len(parts) >= 1 {
+			result, err = strconv.Atoi(parts[0])
+			if err != nil {
+				fmt.Println("Error parsing block ID:", err)
+			}
+		} else {
+			result = 0
+		}
+	} else {
+		// If the blockchain is empty, start with block ID 1
+		result = 0
+	}
+	return result, nil
 }
 
 func (s *JSONRPCServer) QueryAddress(params []interface{}) (interface{}, *jsonrpc.RPCError) {
