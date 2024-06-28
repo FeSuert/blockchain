@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/holiman/uint256"
 	"github.com/ybbus/jsonrpc"
 )
 
@@ -18,28 +20,52 @@ type JSONRPCServer struct {
 	messages []Message
 }
 
+func (s *JSONRPCServer) TxResult(txHash string) (map[int]string, *jsonrpc.RPCError) {
+	lines, err := readAllLines("./data/tx_results.txt")
+	if err != nil {
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid readLine call"}
+	}
+	var txH, result string
+	for _, line := range lines {
+		parts := strings.Split(line, "|")
+
+		// Ensure the parts are as expected
+		if len(parts) != 2 {
+			fmt.Println("Error: expected 2 parts separated by '|'")
+			return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid tx result format"}
+		}
+
+		// Assign the split parts to the variables
+		txH = parts[0]
+		result = parts[1]
+
+		if txH == txHash {
+			// Create a map to hold the result in the required format
+			resultMap := map[int]string{
+				0: result,
+			}
+			return resultMap, nil
+		}
+	}
+
+	return nil, &jsonrpc.RPCError{Code: -32602, Message: "No such transaction"}
+}
+
 func (s *JSONRPCServer) Broadcast(message string) (interface{}, *jsonrpc.RPCError) {
 	time := time.Now()
-	msg := Message{Time: time, Content: message}
+	tx, err := parseTransactionFromJSON(message)
+	if err != nil {
+		fmt.Println("Error parsing transaction JSONRPC:", err)
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid transaction format"}
+	}
+	msg := Message{Time: time, Content: tx}
+	//fmt.Println("Sender after Parsing: " + tx.Sender)
 
 	s.mux.Lock()
 	s.messages = append(s.messages, msg)
 	s.mux.Unlock()
 
-	fmt.Println("Broadcasting:", msg)
-	UpdateFile(msg)
-
-	for _, peer := range config.Peers {
-		//fmt.Println("Sending message to peer", peer)
-		re := regexp.MustCompile(`\d+`)
-		id, _ := strconv.Atoi(re.FindString(peer))
-		peerID, _ := getPeerIDFromPublicKey(config.Miners[id-1])
-		address := fmt.Sprintf("/dns4/%s/tcp/8080/p2p/%s", peer, peerID)
-		connectToPeer(node, peerID, address)
-		timeParts := strings.Split(time.String(), " ")
-		timeStr := strings.TrimSpace(timeParts[0] + "T" + timeParts[1] + "Z")
-		SendMessage(node, address, timeStr+"|"+message+"\n", "/transactions")
-	}
+	UpdateSortedMessages(msg)
 
 	return nil, nil
 }
@@ -58,6 +84,66 @@ func (s *JSONRPCServer) QueryAll() ([]string, *jsonrpc.RPCError) {
 	// }
 
 	return lines, nil
+}
+
+func (s *JSONRPCServer) HighestBlock() (interface{}, *jsonrpc.RPCError) {
+	var result int
+	blockchainFilePath := "./data/blockchain.txt"
+	blockchainLines, err := readAllLines(blockchainFilePath)
+	if err != nil {
+		fmt.Println("Error reading blockchain file:", err)
+	}
+	if len(blockchainLines) > 0 {
+		lastLine := blockchainLines[len(blockchainLines)-1]
+		parts := strings.SplitN(lastLine, "/", 4)
+		if len(parts) >= 1 {
+			result, err = strconv.Atoi(parts[0])
+			if err != nil {
+				fmt.Println("Error parsing block ID:", err)
+			}
+		} else {
+			result = 0
+		}
+	} else {
+		// If the blockchain is empty, start with block ID 1
+		result = 0
+	}
+	return result, nil
+}
+
+func (s *JSONRPCServer) QueryAddress(params []interface{}) (interface{}, *jsonrpc.RPCError) {
+	if len(params) != 1 {
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
+	}
+	paramMap, ok := params[0].(map[string]interface{})
+	if !ok {
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Invalid param format"}
+	}
+
+	to, toOk := paramMap["to"].(string)
+	input, inputOk := paramMap["input"].(string)
+	sender, senderOk := paramMap["sender"].(string)
+	if !toOk || !senderOk {
+		return nil, &jsonrpc.RPCError{Code: -32602, Message: "Fields 'to' and 'sender' are required"}
+	}
+
+	// Handle balance query if input is not provided
+	if !inputOk {
+		address := common.HexToAddress(to)
+		balance := evm.StateDB.GetBalance(address)
+		return balance.String(), nil
+	}
+
+	// Handle smart contract call
+	caller := vm.AccountRef(common.HexToAddress(sender))
+	toAddr := common.HexToAddress(to)
+	data := common.FromHex(input)
+
+	result, _, err := evm.Call(caller, toAddr, data, uint64(1000000), new(uint256.Int))
+	if err != nil {
+		return nil, &jsonrpc.RPCError{Code: -32000, Message: fmt.Sprintf("EVM call error: %v", err)}
+	}
+	return common.Bytes2Hex(result), nil
 }
 
 func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
@@ -79,15 +165,27 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 
 		switch req.Method {
 		case "Node.Broadcast":
+			// fmt.Println(req.Params)
 			if len(req.Params) > 0 {
-				if message, ok := req.Params[0].(string); ok {
-					result, rpcErr = s.Broadcast(message)
+				if paramMap, ok := req.Params[0].(map[string]interface{}); ok {
+					if message, err := json.Marshal(paramMap); err == nil {
+						result, rpcErr = s.Broadcast(string(message))
+					} else {
+						rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
+					}
 				} else {
 					rpcErr = &jsonrpc.RPCError{Code: -32602, Message: "Invalid params"}
 				}
 			}
 		case "Node.QueryAll":
 			result, rpcErr = s.QueryAll()
+		case "Node.HighestBlock":
+			result, rpcErr = s.HighestBlock()
+		case "Node.QueryAddress":
+			result, rpcErr = s.QueryAddress(req.Params)
+		case "Node.TxResult":
+			result, rpcErr = s.TxResult(req.Params[0].(string))
+			// fmt.Println("Req.Params:", req.Params)
 		default:
 			rpcErr = &jsonrpc.RPCError{Code: -32601, Message: "Method not found"}
 		}
@@ -108,6 +206,7 @@ func handleJSONRPC(s *JSONRPCServer) http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			fmt.Println("Error encoding response:", err)
 		}
+		//fmt.Println("Response:", response)
 	}
 }
 

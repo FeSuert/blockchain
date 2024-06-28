@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -46,7 +47,6 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 			// If the blockchain is empty, start with block ID 1
 			state.CurrentBlockID = 1
 		}
-
 		// Initialize leader values map for the current block ID
 		state.LeaderValues = make(map[int]int)
 		state.ReceivedMinLeaderValue = int(^uint(0) >> 1) // Max int value
@@ -65,8 +65,40 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 		}
 
 		// Collect transactions for the new block
-		blockTransactions := lines[:config.MinedBlockSize]
+		blockTransactions := []string{}
+		for _, line := range lines[:config.MinedBlockSize] {
+			// parts := strings.SplitN(line, "|", 2)
+			// if len(parts) != 2 {
+			// 	fmt.Println("Invalid transaction line format:", line)
+			// 	continue
+			// }
+			// transactionData := parts[1]
+			var tx TX
+			tx, err = parseTransactionFromLine(line)
+			if err != nil {
+				fmt.Println("Error parsing transaction CONSENSUS:", err)
+				continue
+			}
 
+			// Validate the transaction
+			isValid, err := validateTransaction(tx)
+			if err != nil {
+				fmt.Println("Error checking transaction:", err)
+				continue
+			}
+			if !isValid {
+				fmt.Println("Invalid transaction:", tx)
+				continue
+			}
+			// // Execute the transaction in the EVM
+			// _, err = executeTransaction(evm, tx)
+			// if err != nil {
+			// 	fmt.Println("Error executing transaction:", err)
+			// 	continue
+			// }
+
+			blockTransactions = append(blockTransactions, line)
+		}
 		// Calculate the Merkle root hash for the transactions
 		root, err := MerkleRootHash(blockTransactions)
 		if err != nil {
@@ -107,9 +139,11 @@ func startConsensus(node host.Host, config Config, state *ConsensusState) {
 
 				// Save the new block to the blockchain and update the state
 				state.CurrentBlockID, err = SaveBlock(newBlock, state, config, node)
-				if err != nil {
+				if err != nil && err != errors.New("Block was already created or has higher LeaderValue") {
 					fmt.Println("Error saving block:", err)
-					continue
+					for _, transaction := range blockTransactions {
+						removeTransaction(transaction)
+					}
 				}
 
 				// Broadcast the new block to all peers

@@ -1,2 +1,2 @@
 FROM python:3.12
-RUN pip install requests
+RUN pip install requests cryptography

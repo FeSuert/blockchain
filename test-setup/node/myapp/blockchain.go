@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -76,7 +77,7 @@ func SaveBlock(block Block, state *ConsensusState, config Config, node host.Host
 
 		if block.ID == existingID {
 			if block.LeaderValue > existingLeaderValue || block.LeaderValue == existingLeaderValue {
-				return state.CurrentBlockID, nil
+				return state.CurrentBlockID, errors.New("Block was already created or has higher LeaderValue")
 			} else {
 				break
 			}
@@ -85,6 +86,25 @@ func SaveBlock(block Block, state *ConsensusState, config Config, node host.Host
 	}
 
 	newLines = append(newLines, newLine)
+
+	for _, transaction := range block.Transactions {
+		tx, err := parseTransactionFromLine(transaction)
+		if err != nil {
+			return state.CurrentBlockID, err
+		}
+		result, err := executeTransaction(evm, tx)
+		if err != nil {
+			return state.CurrentBlockID, err
+		}
+		txHash := hashTransaction(&tx)
+		// fmt.Println("Result of executing Transaction:", result)
+		err = UpdateTXResults(txHash, result)
+		if err!= nil {
+            return state.CurrentBlockID, err
+        }
+
+		
+	}
 
 	for _, peer := range config.Peers {
 		re := regexp.MustCompile(`\d+`)
