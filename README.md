@@ -1,7 +1,1 @@
-TODOs: 
-
-1. RPC Interface 
-a) Broadcast Transaction
-b) TxResult
-c) HighestBlock
-d) QueryAddress
+Blockchain with Network, Consensus and EVM Smart Contracts Layer
